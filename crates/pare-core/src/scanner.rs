@@ -47,6 +47,8 @@ pub struct ScanConfig {
     pub now: Option<Timestamp>,
     /// Cleanup rules (M3). `None` runs only the quick detectors.
     pub rules: Option<std::sync::Arc<crate::rules::RuleSet>>,
+    /// Where to look for projects (M4). Empty = no project scan.
+    pub project_roots: Vec<PathBuf>,
 }
 
 impl Default for ScanConfig {
@@ -58,6 +60,7 @@ impl Default for ScanConfig {
             include_recycle_bin: true,
             now: None,
             rules: None,
+            project_roots: Vec::new(),
         }
     }
 }
@@ -105,6 +108,9 @@ pub struct ScanResult {
     pub categories: Vec<CategorySummary>,
     pub stats: ScanStats,
     pub cancelled: bool,
+    /// Every project found (M4), with git state and build artifacts.
+    #[serde(default)]
+    pub projects: Vec<crate::projects::Project>,
 }
 
 #[derive(Clone)]
@@ -160,6 +166,7 @@ pub fn scan(
         categories: Vec::new(),
         stats: ScanStats::default(),
         cancelled: false,
+        projects: Vec::new(),
     };
 
     if cancel.load(Ordering::Relaxed) {
@@ -203,12 +210,18 @@ pub fn scan(
 
     // Downloads claims nodes that "large files" must not repeat, so it runs first.
     let claimed = std::sync::Mutex::new(std::collections::HashSet::new());
+    let projects_found: std::sync::Mutex<Vec<crate::projects::Project>> =
+        std::sync::Mutex::new(Vec::new());
     let mut detectors: Vec<Detector> = Vec::new();
     let rule_roots: Vec<PathBuf> = roots.clone();
     let drives_for_rules: Vec<PathBuf> = if env.is_fake {
         Vec::new()
     } else {
-        platform::list_drives().into_iter().filter(|d| d.is_fixed).map(|d| d.root).collect()
+        platform::list_drives()
+            .into_iter()
+            .filter(|d| d.is_fixed)
+            .map(|d| d.root)
+            .collect()
     };
     let elevated = platform::is_elevated();
     if let Some(set) = cfg.rules.clone() {
@@ -239,6 +252,33 @@ pub fn scan(
                 }),
             ));
         }
+    }
+    if !cfg.project_roots.is_empty() {
+        let ecos = cfg
+            .rules
+            .as_ref()
+            .map(|r| r.ecosystems.clone())
+            .unwrap_or_default();
+        let roots = cfg.project_roots.clone();
+        let idle = cfg.thresholds.idle_days;
+        let pf = &projects_found;
+        detectors.push((
+            "projects",
+            "Git projects",
+            Box::new(move |c: &DetectCtx| {
+                let found = crate::projects::scan_projects(&roots, &ecos, c.env, c.now, idle);
+                let mut cands = Vec::new();
+                let mut projects = Vec::new();
+                for (p, cand) in found {
+                    if let Some(cand) = cand {
+                        cands.push(cand);
+                    }
+                    projects.push(p);
+                }
+                *pf.lock().unwrap() = projects;
+                cands
+            }),
+        ));
     }
     detectors.extend::<Vec<Detector>>(vec![
         (
@@ -351,6 +391,22 @@ pub fn scan(
     }
 
     result.categories = summarize(&result.findings);
+    // Link each project to its finding (the safety pass may have changed its tier).
+    let mut projects = std::mem::take(&mut *projects_found.lock().unwrap());
+    for p in &mut projects {
+        if let Some(f) = result.findings.iter().find(|f| {
+            f.category == CategoryId::ProjectBuild
+                && f.paths
+                    .iter()
+                    .any(|x| crate::platform::path_starts_with(x, &p.root))
+                && f.title == p.name
+        }) {
+            p.finding_id = Some(f.id.clone());
+            p.tier = f.tier.clone();
+            p.bytes = f.bytes;
+        }
+    }
+    result.projects = projects;
     let snap = progress.snapshot();
     result.stats = ScanStats {
         files: snap.files,
@@ -424,4 +480,62 @@ pub fn summarize(findings: &[Finding]) -> Vec<CategorySummary> {
         .collect();
     v.sort_by_key(|s| std::cmp::Reverse(s.total_bytes()));
     v
+}
+
+/// Projects only (the Projects tab): discover, analyze, measure and run the safety pass.
+pub fn scan_projects_only(
+    roots: &[PathBuf],
+    cfg: &ScanConfig,
+    env: &Env,
+) -> (Vec<crate::projects::Project>, Vec<Finding>) {
+    let now = cfg.now.unwrap_or_else(now_ms);
+    let ecos = cfg
+        .rules
+        .as_ref()
+        .map(|r| r.ecosystems.clone())
+        .unwrap_or_default();
+    let found = crate::projects::scan_projects(roots, &ecos, env, now, cfg.thresholds.idle_days);
+    let mut safety_opts = SafetyOptions::new(now);
+    safety_opts.recent_ms = cfg.thresholds.recent_hours as i64 * MS_PER_HOUR;
+    safety_opts.exclusions = cfg.exclusions.clone();
+    safety_opts.check_in_use = cfg.check_in_use;
+    let tree = Tree::default();
+    let mut projects = Vec::new();
+    let mut assessed: Vec<(Finding, Vec<PathBuf>)> = Vec::new();
+    for (p, cand) in found {
+        if let Some(c) = cand {
+            let (mut f, probe) = measure(c, &tree);
+            safety::assess(&mut f, &probe, env, &safety_opts);
+            let files = if f.tier.is_protected() {
+                Vec::new()
+            } else {
+                probe.recent_files
+            };
+            assessed.push((f, files));
+        }
+        projects.push(p);
+    }
+    if cfg.check_in_use {
+        let groups: Vec<Vec<PathBuf>> = assessed
+            .iter_mut()
+            .map(|(_, p)| std::mem::take(p))
+            .collect();
+        for ((f, _), holders) in assessed.iter_mut().zip(safety::holders_batch(&groups)) {
+            safety::apply_in_use(f, holders);
+        }
+    }
+    let findings: Vec<Finding> = assessed.into_iter().map(|(f, _)| f).collect();
+    for p in &mut projects {
+        if let Some(f) = findings.iter().find(|f| {
+            f.title == p.name
+                && f.paths
+                    .iter()
+                    .any(|x| crate::platform::path_starts_with(x, &p.root))
+        }) {
+            p.finding_id = Some(f.id.clone());
+            p.tier = f.tier.clone();
+            p.bytes = f.bytes;
+        }
+    }
+    (projects, findings)
 }

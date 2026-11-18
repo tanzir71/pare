@@ -15,7 +15,9 @@ use pare_core::scanner::{ScanRequest, ScanRoot, scan};
 fn build_tree(root: &Path, files: usize) {
     let per_dir = 100;
     for d in 0..files.div_ceil(per_dir) {
-        let dir = root.join(format!("d{:03}", d / 100)).join(format!("e{d:05}"));
+        let dir = root
+            .join(format!("d{:03}", d / 100))
+            .join(format!("e{d:05}"));
         fs::create_dir_all(&dir).unwrap();
         for f in 0..per_dir.min(files - d * per_dir) {
             fs::write(dir.join(format!("f{f:03}.txt")), b"pare").unwrap();
@@ -63,7 +65,10 @@ fn progress_is_sampled_without_blocking() {
     let (_, costs, files) = run(5_000);
     assert_eq!(files, 5_000);
     let worst = costs.iter().max().copied().unwrap_or_default();
-    assert!(worst < Duration::from_millis(250), "a progress sample took {worst:?}");
+    assert!(
+        worst < Duration::from_millis(250),
+        "a progress sample took {worst:?}"
+    );
 }
 
 /// Run with `cargo test -p pare-core --release --test scan_perf -- --ignored --nocapture`.

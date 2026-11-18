@@ -167,11 +167,16 @@ impl Server {
 }
 
 pub fn serve(env: &Env) {
-    let mut server = Server { env: env.clone(), last: None };
+    let mut server = Server {
+        env: env.clone(),
+        last: None,
+    };
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();
     for line in stdin.lock().lines().map_while(Result::ok) {
-        let Ok(msg) = serde_json::from_str::<Value>(&line) else { continue };
+        let Ok(msg) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
         let id = msg.get("id").cloned();
         let method = msg.get("method").and_then(|m| m.as_str()).unwrap_or("");
         let Some(id) = id else { continue }; // notifications need no reply
@@ -189,15 +194,21 @@ pub fn serve(env: &Env) {
                 let name = params.get("name").and_then(|n| n.as_str()).unwrap_or("");
                 let args = params.get("arguments").cloned().unwrap_or(json!({}));
                 Ok(match server.call(name, &args) {
-                    Ok(v) => json!({ "content": [{ "type": "text", "text": serde_json::to_string_pretty(&v).unwrap_or_default() }], "structuredContent": v }),
-                    Err(e) => json!({ "content": [{ "type": "text", "text": e }], "isError": true }),
+                    Ok(v) => {
+                        json!({ "content": [{ "type": "text", "text": serde_json::to_string_pretty(&v).unwrap_or_default() }], "structuredContent": v })
+                    }
+                    Err(e) => {
+                        json!({ "content": [{ "type": "text", "text": e }], "isError": true })
+                    }
                 })
             }
             _ => Err((-32601, format!("method not found: {method}"))),
         };
         let reply = match result {
             Ok(r) => json!({ "jsonrpc": "2.0", "id": id, "result": r }),
-            Err((code, message)) => json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } }),
+            Err((code, message)) => {
+                json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
+            }
         };
         let _ = writeln!(stdout, "{reply}");
         let _ = stdout.flush();

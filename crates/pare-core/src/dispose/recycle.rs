@@ -38,7 +38,11 @@ pub fn recycled_by_pare(log_path: &Path) -> Vec<RecycledByPare> {
             if *recycled == 0 || !matches!(result, ItemStatus::Ok | ItemStatus::Partial) {
                 continue;
             }
-            let all: Vec<PathBuf> = if paths.is_empty() { vec![path.clone()] } else { paths.clone() };
+            let all: Vec<PathBuf> = if paths.is_empty() {
+                vec![path.clone()]
+            } else {
+                paths.clone()
+            };
             let share = *recycled / all.len().max(1) as u64;
             for p in all {
                 out.push(RecycledByPare {
@@ -53,8 +57,18 @@ pub fn recycled_by_pare(log_path: &Path) -> Vec<RecycledByPare> {
     }
     for r in &records {
         match r {
-            LogRecord::Restore { op, path, result: ItemStatus::Ok, .. }
-            | LogRecord::Purge { op, path, result: ItemStatus::Ok, .. } => {
+            LogRecord::Restore {
+                op,
+                path,
+                result: ItemStatus::Ok,
+                ..
+            }
+            | LogRecord::Purge {
+                op,
+                path,
+                result: ItemStatus::Ok,
+                ..
+            } => {
                 out.retain(|x| !(x.op == *op && x.path == *path));
             }
             _ => {}
@@ -94,7 +108,8 @@ fn matching_trash_items(
             .iter()
             .filter(|t| {
                 let orig = t.original_path();
-                platform::path_starts_with(&orig, &w.path) && platform::path_starts_with(&w.path, &orig)
+                platform::path_starts_with(&orig, &w.path)
+                    && platform::path_starts_with(&w.path, &orig)
             })
             .min_by_key(|t| (t.time_deleted * 1000 - w.ts).abs());
         if let Some(t) = best {
@@ -129,7 +144,10 @@ pub fn restore(log: &OpLog, op: &str, items: Option<&[String]>) -> RestoreReport
     for (w, t) in matched {
         let (result, error) = if platform::stat(&w.path).is_ok() {
             report.collisions.push(w.path.clone());
-            (ItemStatus::Skipped, Some("Something already exists at the original location".to_string()))
+            (
+                ItemStatus::Skipped,
+                Some("Something already exists at the original location".to_string()),
+            )
         } else {
             match trash::os_limited::restore_all([t]) {
                 Ok(()) => {
@@ -156,7 +174,11 @@ pub fn restore(log: &OpLog, op: &str, items: Option<&[String]>) -> RestoreReport
 /// Permanently remove items *Pare* moved to the Recycle Bin: those of `op`, or (with `None`)
 /// all of them older than `older_than_days`.
 #[cfg(any(windows, all(unix, not(target_os = "macos"))))]
-pub fn purge_pare_items(log: &OpLog, op: Option<&str>, older_than_days: Option<u32>) -> PurgeReport {
+pub fn purge_pare_items(
+    log: &OpLog,
+    op: Option<&str>,
+    older_than_days: Option<u32>,
+) -> PurgeReport {
     let now = now_ms();
     let wanted: Vec<RecycledByPare> = recycled_by_pare(log.path())
         .into_iter()
@@ -181,7 +203,11 @@ pub fn purge_pare_items(log: &OpLog, op: Option<&str>, older_than_days: Option<u
             ts: now_ms(),
             path: w.path.clone(),
             bytes: w.bytes,
-            result: if ok { ItemStatus::Ok } else { ItemStatus::Failed },
+            result: if ok {
+                ItemStatus::Ok
+            } else {
+                ItemStatus::Failed
+            },
         });
     }
     report

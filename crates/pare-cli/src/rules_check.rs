@@ -31,7 +31,11 @@ pub struct RuleReport {
 }
 
 pub fn check(set: &RuleSet, env: &Env, only: Option<&str>) -> Vec<RuleReport> {
-    let drives: Vec<PathBuf> = pare_core::platform::list_drives().into_iter().filter(|d| d.is_fixed).map(|d| d.root).collect();
+    let drives: Vec<PathBuf> = pare_core::platform::list_drives()
+        .into_iter()
+        .filter(|d| d.is_fixed)
+        .map(|d| d.root)
+        .collect();
     let mut out = Vec::new();
     for (tool, rule) in set.all_rules() {
         if only.is_some_and(|o| !rule.id.starts_with(o)) {
@@ -40,7 +44,9 @@ pub fn check(set: &RuleSet, env: &Env, only: Option<&str>) -> Vec<RuleReport> {
         let mut paths = Vec::new();
         for pat in &rule.paths {
             for exp in vars::expand(pat, env, &drives) {
-                let Some(p) = PathPattern::compile(&exp) else { continue };
+                let Some(p) = PathPattern::compile(&exp) else {
+                    continue;
+                };
                 let base_exists = pare_core::platform::stat(p.base()).is_ok();
                 let found: Vec<Match> = p.find();
                 let (mut bytes, mut files) = (0, 0);
@@ -56,7 +62,11 @@ pub fn check(set: &RuleSet, env: &Env, only: Option<&str>) -> Vec<RuleReport> {
                     matches: found.len(),
                     bytes,
                     files,
-                    examples: found.iter().take(3).map(|m| m.path().to_path_buf()).collect(),
+                    examples: found
+                        .iter()
+                        .take(3)
+                        .map(|m| m.path().to_path_buf())
+                        .collect(),
                 });
             }
         }
@@ -74,7 +84,12 @@ pub fn check(set: &RuleSet, env: &Env, only: Option<&str>) -> Vec<RuleReport> {
 pub fn print(reports: &[RuleReport]) {
     for r in reports {
         let mark = if r.matched { "MATCH" } else { "-----" };
-        println!("{mark} {:<40} {}{}", r.id, r.tool, if r.verified { " (verified)" } else { "" });
+        println!(
+            "{mark} {:<40} {}{}",
+            r.id,
+            r.tool,
+            if r.verified { " (verified)" } else { "" }
+        );
         for p in &r.paths {
             println!(
                 "      {:<70} {:>5} matches {:>10} {:>8} files{}",
@@ -82,7 +97,11 @@ pub fn print(reports: &[RuleReport]) {
                 p.matches,
                 format_bytes(p.bytes),
                 p.files,
-                if p.base_exists { "" } else { "  (base missing)" }
+                if p.base_exists {
+                    ""
+                } else {
+                    "  (base missing)"
+                }
             );
         }
     }

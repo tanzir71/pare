@@ -38,6 +38,8 @@ pub fn run() {
             commands::settings_set,
             commands::exclusion_add,
             commands::open_in_explorer,
+            commands::projects_list,
+            commands::projects_scan,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Pare");

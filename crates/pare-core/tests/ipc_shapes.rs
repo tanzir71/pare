@@ -23,7 +23,9 @@ fn finding() -> Finding {
             reason: ProtectReason::InUse,
             detail: Some("Open in claude.exe".into()),
         },
-        disposal: Disposal::EmptyRecycleBin { drive: "C:\\".into() },
+        disposal: Disposal::EmptyRecycleBin {
+            drive: "C:\\".into(),
+        },
         comes_back: ComesBack::OnDemand,
         why: "w".into(),
         if_removed: "i".into(),
@@ -52,19 +54,54 @@ fn finding_shape() {
     assert_eq!(
         keys(&v),
         [
-            "badge", "bytes", "category", "comesBack", "createdBy", "dates", "disposal", "facts", "git", "id", "ifRemoved",
-            "items", "logicalBytes", "note", "paths", "ruleId", "source", "sourcePath", "tier", "title", "why"
+            "badge",
+            "bytes",
+            "category",
+            "comesBack",
+            "createdBy",
+            "dates",
+            "disposal",
+            "facts",
+            "git",
+            "id",
+            "ifRemoved",
+            "items",
+            "logicalBytes",
+            "note",
+            "paths",
+            "ruleId",
+            "source",
+            "sourcePath",
+            "tier",
+            "title",
+            "why"
         ]
     );
-    assert_eq!(v["tier"], json!({"kind": "protected", "reason": "in-use", "detail": "Open in claude.exe"}));
-    assert_eq!(v["disposal"], json!({"kind": "empty-recycle-bin", "drive": "C:\\"}));
+    assert_eq!(
+        v["tier"],
+        json!({"kind": "protected", "reason": "in-use", "detail": "Open in claude.exe"})
+    );
+    assert_eq!(
+        v["disposal"],
+        json!({"kind": "empty-recycle-bin", "drive": "C:\\"})
+    );
     assert_eq!(v["comesBack"], "on-demand");
     assert_eq!(v["category"], "ai-tools");
-    assert_eq!(v["dates"], json!({"createdMin": 1, "modifiedMax": 2, "accessedMax": null}));
-    assert_eq!(v["facts"], json!([["Rule", "x"]]));
-    assert_eq!(serde_json::to_value(Tier::Safe).unwrap(), json!({"kind": "safe"}));
     assert_eq!(
-        serde_json::to_value(Disposal::Command { program: "pnpm".into(), args: vec!["store".into()] }).unwrap(),
+        v["dates"],
+        json!({"createdMin": 1, "modifiedMax": 2, "accessedMax": null})
+    );
+    assert_eq!(v["facts"], json!([["Rule", "x"]]));
+    assert_eq!(
+        serde_json::to_value(Tier::Safe).unwrap(),
+        json!({"kind": "safe"})
+    );
+    assert_eq!(
+        serde_json::to_value(Disposal::Command {
+            program: "pnpm".into(),
+            args: vec!["store".into()]
+        })
+        .unwrap(),
         json!({"kind": "command", "program": "pnpm", "args": ["store"]})
     );
 }
@@ -90,8 +127,20 @@ fn scan_event_and_category_shapes() {
     let v = serde_json::to_value(ScanEvent::Category(cats[0].clone())).unwrap();
     assert_eq!(v["type"], "category");
     for k in [
-        "id", "title", "description", "icon", "hue", "safeBytes", "reviewBytes", "protectedBytes", "items", "findings", "sources",
-        "protectedFindings", "freesNowBytes", "recycleBytes",
+        "id",
+        "title",
+        "description",
+        "icon",
+        "hue",
+        "safeBytes",
+        "reviewBytes",
+        "protectedBytes",
+        "items",
+        "findings",
+        "sources",
+        "protectedFindings",
+        "freesNowBytes",
+        "recycleBytes",
     ] {
         assert!(v.get(k).is_some(), "CategorySummary lacks {k}: {v}");
     }
@@ -105,16 +154,32 @@ fn settings_shape() {
     assert_eq!(
         keys(&v),
         [
-            "cachesToRecycleBin", "checkForUpdates", "customRoots", "exclusions", "hiddenCards", "language", "onboardingDone",
-            "projectRoots", "purgePareItemsAfterDays", "theme", "thresholds"
+            "cachesToRecycleBin",
+            "checkForUpdates",
+            "customRoots",
+            "exclusions",
+            "hiddenCards",
+            "language",
+            "onboardingDone",
+            "projectRoots",
+            "purgePareItemsAfterDays",
+            "theme",
+            "thresholds"
         ]
     );
     assert_eq!(v["theme"], "system");
     assert_eq!(
         keys(&serde_json::to_value(Thresholds::default()).unwrap()),
         [
-            "duplicateMinMb", "idleDays", "installerDays", "largeFileDays", "largeFileMb", "oldDownloadDays", "partialDays",
-            "recentHours", "screenshotDays"
+            "duplicateMinMb",
+            "idleDays",
+            "installerDays",
+            "largeFileDays",
+            "largeFileMb",
+            "oldDownloadDays",
+            "partialDays",
+            "recentHours",
+            "screenshotDays"
         ]
     );
 }

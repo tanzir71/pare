@@ -56,6 +56,7 @@ impl FakeHome {
             include_recycle_bin: false,
             now: None,
             rules: None,
+            project_roots: Vec::new(),
         }
     }
 
@@ -206,5 +207,8 @@ pub fn age_tree(path: &Path, age_days: f64) {
             age_tree(&e.unwrap().path(), age_days);
         }
     }
-    set_age(path, age_days);
+    // Read-only files (git objects) can't take new times; their age doesn't matter here.
+    let t = SystemTime::now() - Duration::from_secs_f64(age_days * DAY);
+    let ft = filetime::FileTime::from_system_time(t);
+    let _ = filetime::set_file_times(path, ft, ft);
 }

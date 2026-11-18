@@ -31,6 +31,8 @@
     "allow-settings-get",
     "allow-settings-set",
     "allow-exclusion-add",
-    "allow-open-in-explorer"
+    "allow-open-in-explorer",
+    "allow-projects-list",
+    "allow-projects-scan"
   ]
 }

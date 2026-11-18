@@ -13,8 +13,7 @@ use pare_core::history::{self, HistoryDetail, HistoryOp};
 use pare_core::platform::{self, Drive};
 use pare_core::scan::progress::{Progress, ProgressSnapshot};
 use pare_core::scanner::{
-    DetectorStatus, ScanConfig, ScanEvent, ScanOutput, ScanRequest, ScanRoot, scan,
-    summarize,
+    DetectorStatus, ScanConfig, ScanEvent, ScanOutput, ScanRequest, ScanRoot, scan, summarize,
 };
 use pare_core::settings::Settings;
 use pare_core::{CategoryId, CategorySummary, Disposal, Finding, ProtectReason, Tier, Timestamp};
@@ -45,7 +44,12 @@ pub fn app_info(state: State<'_, AppState>) -> AppInfo {
         version: env!("CARGO_PKG_VERSION").to_string(),
         core_version: pare_core::VERSION.to_string(),
         platform: std::env::consts::OS.to_string(),
-        log_dir: state.env.oplog_path().parent().map(|p| p.to_path_buf()).unwrap_or_default(),
+        log_dir: state
+            .env
+            .oplog_path()
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_default(),
         settings_path: state.env.settings_path(),
     }
 }
@@ -152,7 +156,18 @@ fn config_from(settings: &Settings, rules: Arc<pare_core::rules::RuleSet>) -> Sc
         include_recycle_bin: true,
         now: None,
         rules: Some(rules),
+        project_roots: Vec::new(),
     }
+}
+
+fn project_roots(settings: &Settings, env: &pare_core::Env) -> Vec<PathBuf> {
+    let mut v = pare_core::projects::default_roots(env);
+    for p in &settings.project_roots {
+        if !v.contains(p) {
+            v.push(p.clone());
+        }
+    }
+    v
 }
 
 /// "Send caches to the Recycle Bin too": every direct delete becomes a recycle.
@@ -169,7 +184,11 @@ fn apply_disposal_preference(out: &mut ScanOutput, settings: &Settings) {
 }
 
 #[tauri::command]
-pub fn scan_start(app: AppHandle, state: State<'_, AppState>, request: ScanRequest) -> CmdResult<u64> {
+pub fn scan_start(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    request: ScanRequest,
+) -> CmdResult<u64> {
     if request.roots.is_empty() {
         return Err("Pick at least one place to scan.".into());
     }
@@ -189,7 +208,8 @@ pub fn scan_start(app: AppHandle, state: State<'_, AppState>, request: ScanReque
     };
     let env = state.env.clone();
     let settings = state.settings.lock().map_err(err)?.clone();
-    let cfg = config_from(&settings, state.rules.clone());
+    let mut cfg = config_from(&settings, state.rules.clone());
+    cfg.project_roots = project_roots(&settings, &state.env);
     let done = Arc::new(AtomicBool::new(false));
 
     // Progress sampler: 4 events per second, independent of the walker.
@@ -224,7 +244,13 @@ pub fn scan_start(app: AppHandle, state: State<'_, AppState>, request: ScanReque
                     }
                 }
             }
-            let _ = app.emit("scan://event", EventPayload { scan_id: id, event: ev });
+            let _ = app.emit(
+                "scan://event",
+                EventPayload {
+                    scan_id: id,
+                    event: ev,
+                },
+            );
         };
         let mut out = scan(&request, &cfg, &env, &progress, &cancel, &on_event);
         apply_disposal_preference(&mut out, &settings);
@@ -267,7 +293,10 @@ pub fn scan_cancel(state: State<'_, AppState>, scan_id: u64) -> CmdResult<()> {
 #[tauri::command]
 pub fn scan_summary(state: State<'_, AppState>) -> CmdResult<Option<ScanSummary>> {
     let slot = state.scan.lock().map_err(err)?;
-    let mut s = slot.output.as_ref().map(|o| summary_of(slot.id, o, &slot.detectors));
+    let mut s = slot
+        .output
+        .as_ref()
+        .map(|o| summary_of(slot.id, o, &slot.detectors));
     if slot.running {
         if let Some(s) = &mut s {
             s.running = true;
@@ -301,7 +330,12 @@ pub fn category_get(state: State<'_, AppState>, id: CategoryId) -> CmdResult<Cat
             .collect();
         findings.sort_by_key(|f| std::cmp::Reverse(f.bytes));
         CategoryDetail {
-            summary: out.result.categories.iter().find(|c| c.info.id == id).cloned(),
+            summary: out
+                .result
+                .categories
+                .iter()
+                .find(|c| c.info.id == id)
+                .cloned(),
             findings,
         }
     })
@@ -309,7 +343,9 @@ pub fn category_get(state: State<'_, AppState>, id: CategoryId) -> CmdResult<Cat
 
 #[tauri::command]
 pub fn finding_get(state: State<'_, AppState>, id: String) -> CmdResult<Option<Finding>> {
-    with_output(&state, |out| out.result.findings.iter().find(|f| f.id == id).cloned())
+    with_output(&state, |out| {
+        out.result.findings.iter().find(|f| f.id == id).cloned()
+    })
 }
 
 #[tauri::command]
@@ -339,24 +375,48 @@ pub fn clean(app: AppHandle, state: State<'_, AppState>, ids: Vec<String>) -> Cm
     if state.cleaning.swap(true, Ordering::SeqCst) {
         return Err("A cleanup is already running.".into());
     }
-    let (findings, scan_started) = match with_output(&state, |out| {
-        let f: Vec<Finding> = out
-            .result
-            .findings
-            .iter()
-            .filter(|f| ids.contains(&f.id))
-            .cloned()
-            .collect();
-        (f, out.result.started)
-    }) {
-        Ok(v) => v,
-        Err(e) => {
-            state.cleaning.store(false, Ordering::SeqCst);
-            return Err(e);
+    // Findings come only from results Pare produced (the last scan, or the Projects tab).
+    let mut findings: Vec<Finding> = Vec::new();
+    let mut scan_started = i64::MAX;
+    if let Ok(slot) = state.scan.lock() {
+        if let Some(out) = &slot.output {
+            let f: Vec<Finding> = out
+                .result
+                .findings
+                .iter()
+                .filter(|f| ids.contains(&f.id))
+                .cloned()
+                .collect();
+            if !f.is_empty() {
+                scan_started = scan_started.min(out.result.started);
+            }
+            findings.extend(f);
         }
-    };
+    }
+    if let Ok(p) = state.projects.lock() {
+        if let Some(p) = p.as_ref() {
+            let f: Vec<Finding> = p
+                .findings
+                .iter()
+                .filter(|f| ids.contains(&f.id) && !findings.iter().any(|x| x.id == f.id))
+                .cloned()
+                .collect();
+            if !f.is_empty() {
+                scan_started = scan_started.min(p.started);
+            }
+            findings.extend(f);
+        }
+    }
+    if findings.is_empty() {
+        state.cleaning.store(false, Ordering::SeqCst);
+        return Err("Nothing to clean: scan again first.".into());
+    }
     let env = state.env.clone();
-    let exclusions = state.settings.lock().map(|s| s.exclusions.clone()).unwrap_or_default();
+    let exclusions = state
+        .settings
+        .lock()
+        .map(|s| s.exclusions.clone())
+        .unwrap_or_default();
     std::thread::spawn(move || {
         use tauri::Manager;
         let state = app.state::<AppState>();
@@ -371,7 +431,10 @@ pub fn clean(app: AppHandle, state: State<'_, AppState>, ids: Vec<String>) -> Cm
                 })
             }
             Err(e) => {
-                let _ = app.emit("clean://error", format!("Couldn't open the operation log: {e}"));
+                let _ = app.emit(
+                    "clean://error",
+                    format!("Couldn't open the operation log: {e}"),
+                );
                 state.cleaning.store(false, Ordering::SeqCst);
                 return;
             }
@@ -393,6 +456,24 @@ pub fn clean(app: AppHandle, state: State<'_, AppState>, ids: Vec<String>) -> Cm
                 o.result.findings.retain(|f| !done.contains(&f.id.as_str()));
                 o.result.categories = summarize(&o.result.findings);
                 *out = Arc::new(o);
+            }
+        }
+        if let Ok(mut p) = state.projects.lock() {
+            if let Some(p) = p.as_mut() {
+                let ok: Vec<&str> = report
+                    .results
+                    .iter()
+                    .filter(|r| matches!(r.status, pare_core::dispose::oplog::ItemStatus::Ok))
+                    .map(|r| r.finding_id.as_str())
+                    .collect();
+                p.findings.retain(|f| !ok.contains(&f.id.as_str()));
+                for pr in &mut p.projects {
+                    if pr.finding_id.as_deref().is_some_and(|id| ok.contains(&id)) {
+                        pr.finding_id = None;
+                        pr.artifacts.clear();
+                        pr.bytes = 0;
+                    }
+                }
             }
         }
         state.cleaning.store(false, Ordering::SeqCst);
@@ -425,7 +506,11 @@ pub fn history_restore(
     items: Option<Vec<String>>,
 ) -> CmdResult<RestoreReport> {
     let log = OpLog::open(&state.env.oplog_path()).map_err(err)?;
-    Ok(pare_core::dispose::recycle::restore(&log, &op, items.as_deref()))
+    Ok(pare_core::dispose::recycle::restore(
+        &log,
+        &op,
+        items.as_deref(),
+    ))
 }
 
 #[tauri::command]
@@ -435,7 +520,11 @@ pub fn recycle_purge_pare_items(
     older_than_days: Option<u32>,
 ) -> CmdResult<PurgeReport> {
     let log = OpLog::open(&state.env.oplog_path()).map_err(err)?;
-    Ok(pare_core::dispose::recycle::purge_pare_items(&log, op.as_deref(), older_than_days))
+    Ok(pare_core::dispose::recycle::purge_pare_items(
+        &log,
+        op.as_deref(),
+        older_than_days,
+    ))
 }
 
 #[tauri::command]
@@ -467,7 +556,9 @@ pub fn exclusion_add(state: State<'_, AppState>, path: PathBuf) -> CmdResult<Set
     if let Some(out) = slot.output.as_mut() {
         let mut o = (**out).clone();
         for f in &mut o.result.findings {
-            if f.paths.iter().any(|p| platform::path_starts_with(p, &path) || platform::path_starts_with(&path, p)) {
+            if f.paths.iter().any(|p| {
+                platform::path_starts_with(p, &path) || platform::path_starts_with(&path, p)
+            }) {
                 f.tier = std::mem::replace(&mut f.tier, Tier::Safe)
                     .downgrade(Tier::protected(ProtectReason::Excluded));
             }
@@ -487,12 +578,18 @@ pub fn open_in_explorer(path: PathBuf) -> CmdResult<()> {
     {
         let mut arg = std::ffi::OsString::from("/select,");
         arg.push(path.as_os_str());
-        std::process::Command::new("explorer.exe").arg(arg).spawn().map_err(err)?;
+        std::process::Command::new("explorer.exe")
+            .arg(arg)
+            .spawn()
+            .map_err(err)?;
     }
     #[cfg(not(windows))]
     {
         let dir = path.parent().unwrap_or(&path);
-        std::process::Command::new("xdg-open").arg(dir).spawn().map_err(err)?;
+        std::process::Command::new("xdg-open")
+            .arg(dir)
+            .spawn()
+            .map_err(err)?;
     }
     Ok(())
 }
@@ -500,7 +597,11 @@ pub fn open_in_explorer(path: PathBuf) -> CmdResult<()> {
 /// Background housekeeping at startup: empty Pare's own Recycle Bin items older than the
 /// configured age (only items Pare moved).
 pub fn startup_housekeeping(state: &AppState) {
-    let days = state.settings.lock().ok().and_then(|s| s.purge_pare_items_after_days);
+    let days = state
+        .settings
+        .lock()
+        .ok()
+        .and_then(|s| s.purge_pare_items_after_days);
     let Some(days) = days else { return };
     let path = state.env.oplog_path();
     if !path.exists() {
@@ -510,8 +611,81 @@ pub fn startup_housekeeping(state: &AppState) {
         if let Ok(log) = OpLog::open(&path) {
             let r = pare_core::dispose::recycle::purge_pare_items(&log, None, Some(days));
             if r.items > 0 {
-                tracing::info!(items = r.items, bytes = r.bytes, "purged old Pare items from the Recycle Bin");
+                tracing::info!(
+                    items = r.items,
+                    bytes = r.bytes,
+                    "purged old Pare items from the Recycle Bin"
+                );
             }
         }
     });
+}
+
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectsView {
+    checked: Option<Timestamp>,
+    roots: Vec<PathBuf>,
+    projects: Vec<pare_core::projects::Project>,
+    findings: Vec<Finding>,
+}
+
+fn projects_view(slot: Option<&crate::state::ProjectsSlot>, roots: Vec<PathBuf>) -> ProjectsView {
+    match slot {
+        Some(p) => ProjectsView {
+            checked: Some(p.started),
+            roots: p.roots.clone(),
+            projects: p.projects.clone(),
+            findings: p.findings.clone(),
+        },
+        None => ProjectsView {
+            checked: None,
+            roots,
+            projects: Vec::new(),
+            findings: Vec::new(),
+        },
+    }
+}
+
+/// The last Projects scan (or the roots it would use).
+#[tauri::command]
+pub fn projects_list(state: State<'_, AppState>) -> CmdResult<ProjectsView> {
+    let settings = state.settings.lock().map_err(err)?.clone();
+    let roots = project_roots(&settings, &state.env);
+    let slot = state.projects.lock().map_err(err)?;
+    Ok(projects_view(slot.as_ref(), roots))
+}
+
+/// Scan the project roots now (read-only).
+#[tauri::command]
+pub async fn projects_scan(app: AppHandle) -> CmdResult<ProjectsView> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Manager;
+        let state = app.state::<AppState>();
+        let settings = state.settings.lock().map_err(err)?.clone();
+        let roots = project_roots(&settings, &state.env);
+        let mut cfg = config_from(&settings, state.rules.clone());
+        cfg.project_roots = roots.clone();
+        let started = pare_core::platform::now_ms();
+        let (projects, mut findings) =
+            pare_core::scanner::scan_projects_only(&roots, &cfg, &state.env);
+        if settings.caches_to_recycle_bin {
+            for f in &mut findings {
+                if f.disposal == Disposal::Delete {
+                    f.disposal = Disposal::Recycle;
+                }
+            }
+        }
+        let slot = crate::state::ProjectsSlot {
+            started,
+            roots: roots.clone(),
+            projects,
+            findings,
+        };
+        let view = projects_view(Some(&slot), roots);
+        *state.projects.lock().map_err(err)? = Some(slot);
+        Ok(view)
+    })
+    .await
+    .map_err(err)?
 }

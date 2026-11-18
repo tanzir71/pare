@@ -19,6 +19,8 @@ const COMMANDS: &[&str] = &[
     "settings_set",
     "exclusion_add",
     "open_in_explorer",
+    "projects_list",
+    "projects_scan",
 ];
 
 fn main() {

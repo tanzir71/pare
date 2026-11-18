@@ -39,7 +39,12 @@ fn copy_fixture(h: &FakeHome, age_days: f64) {
                 continue;
             }
             let out_name = match name.strip_prefix("ENC~") {
-                Some(rest) => encode(&rest.split('~').fold(home.to_path_buf(), |a, c| a.join(c)).to_string_lossy()),
+                Some(rest) => encode(
+                    &rest
+                        .split('~')
+                        .fold(home.to_path_buf(), |a, c| a.join(c))
+                        .to_string_lossy(),
+                ),
                 None => name.clone(),
             };
             let out = dst.join(out_name);
@@ -51,7 +56,10 @@ fn copy_fixture(h: &FakeHome, age_days: f64) {
                 if name.ends_with(".jsonl") {
                     let esc = serde_json::to_string(&home.to_string_lossy()).unwrap();
                     let esc = &esc[1..esc.len() - 1];
-                    bytes = String::from_utf8(bytes).unwrap().replace("{HOME}", esc).into_bytes();
+                    bytes = String::from_utf8(bytes)
+                        .unwrap()
+                        .replace("{HOME}", esc)
+                        .into_bytes();
                 }
                 fs::write(&out, bytes).unwrap();
             }
@@ -73,7 +81,12 @@ fn ctx<'a>(h: &'a FakeHome, within: &'a [PathBuf]) -> RuleCtx<'a> {
 }
 
 fn protect_set(set: &RuleSet, h: &FakeHome) -> PathSet {
-    PathSet::new(set.protect.iter().flat_map(|p| vars::expand(p, &h.env, &[])).collect::<Vec<_>>())
+    PathSet::new(
+        set.protect
+            .iter()
+            .flat_map(|p| vars::expand(p, &h.env, &[]))
+            .collect::<Vec<_>>(),
+    )
 }
 
 fn covers(c: &Candidate, file: &Path) -> bool {
@@ -136,9 +149,19 @@ fn every_rule_matches_its_fixture() {
         }
         let within = vec![h.dir.path().to_path_buf()];
         let cands = run_rule(tool, rule, &ctx(&h, &within), &protect_set(&set, &h));
-        assert!(!cands.is_empty(), "{} matched nothing; planted {planted:#?}", rule.id);
+        assert!(
+            !cands.is_empty(),
+            "{} matched nothing; planted {planted:#?}",
+            rule.id
+        );
         for f in &planted {
-            assert!(cands.iter().any(|c| covers(c, f)), "{}: {} not covered by {:#?}", rule.id, f.display(), cands.iter().map(|c| &c.extra_paths).collect::<Vec<_>>());
+            assert!(
+                cands.iter().any(|c| covers(c, f)),
+                "{}: {} not covered by {:#?}",
+                rule.id,
+                f.display(),
+                cands.iter().map(|c| &c.extra_paths).collect::<Vec<_>>()
+            );
         }
         for c in &cands {
             assert_eq!(c.rule_id, rule.id);
@@ -190,15 +213,32 @@ fn claude_orphaned_transcripts() {
     let orphan = c
         .iter()
         .find(|c| c.title == "Transcripts of deleted projects")
-        .unwrap_or_else(|| panic!("no orphan finding in {:#?}", c.iter().map(|c| (&c.title, &c.extra_paths)).collect::<Vec<_>>()));
+        .unwrap_or_else(|| {
+            panic!(
+                "no orphan finding in {:#?}",
+                c.iter()
+                    .map(|c| (&c.title, &c.extra_paths))
+                    .collect::<Vec<_>>()
+            )
+        });
     assert_eq!(orphan.tier, Tier::Safe);
     assert_eq!(orphan.badge.as_deref(), Some("Orphaned"));
     assert_eq!(orphan.disposal, Disposal::Recycle);
-    let deleted = h.home().join(".claude/projects").join(encode(&h.home().join("code").join("deleted-app").to_string_lossy()));
-    let live = h.home().join(".claude/projects").join(encode(&h.home().join("code").join("live-app").to_string_lossy()));
+    let deleted = h.home().join(".claude/projects").join(encode(
+        &h.home().join("code").join("deleted-app").to_string_lossy(),
+    ));
+    let live = h.home().join(".claude/projects").join(encode(
+        &h.home().join("code").join("live-app").to_string_lossy(),
+    ));
     assert!(covers(orphan, &deleted.join("0001.jsonl")));
-    assert!(!covers(orphan, &deleted.join("memory").join("notes.md")), "project memory is never-touch");
-    assert!(!c.iter().any(|c| covers(c, &live.join("0002.jsonl"))), "live project kept");
+    assert!(
+        !covers(orphan, &deleted.join("memory").join("notes.md")),
+        "project memory is never-touch"
+    );
+    assert!(
+        !c.iter().any(|c| covers(c, &live.join("0002.jsonl"))),
+        "live project kept"
+    );
 }
 
 #[test]
@@ -226,7 +266,10 @@ fn ollama_models_count_only_unshared_blobs() {
     let (tool, rule) = set.rule("ollama.models").unwrap();
     let within = vec![h.dir.path().to_path_buf()];
     let c = run_rule(tool, rule, &ctx(&h, &within), &protect_set(&set, &h));
-    let tiny = c.iter().find(|c| c.title == "Model tiny:latest").expect("tiny");
+    let tiny = c
+        .iter()
+        .find(|c| c.title == "Model tiny:latest")
+        .expect("tiny");
     assert_eq!(
         tiny.disposal,
         Disposal::Command {
@@ -236,15 +279,18 @@ fn ollama_models_count_only_unshared_blobs() {
     );
     let blobs = h.home().join(".ollama/models/blobs");
     let alloc = |n: &str| pare_core::platform::stat(&blobs.join(n)).unwrap().allocated;
-    assert_eq!(tiny.measured.as_ref().unwrap().bytes, alloc("sha256-aaa") + alloc("sha256-cfg1"));
+    assert_eq!(
+        tiny.measured.as_ref().unwrap().bytes,
+        alloc("sha256-aaa") + alloc("sha256-cfg1")
+    );
     assert!(c.iter().any(|c| c.title == "Model small:q4"));
 }
 
 /// M3 acceptance: config files in the never-touch list are never matched, even by broad globs.
 mod never_touch_property {
     use super::*;
-    use pare_core::rules::{LoadedTool, RuleDef, TierDecl, ToolDef};
     use pare_core::ComesBack;
+    use pare_core::rules::{LoadedTool, RuleDef, TierDecl, ToolDef};
     use proptest::prelude::*;
 
     const NEVER: &[&str] = &[
@@ -262,7 +308,12 @@ mod never_touch_property {
         ".codex/AGENTS.md",
         ".cargo/bin/cargo.exe",
     ];
-    const OTHER: &[&str] = &[".claude/debug/x.txt", ".codex/sessions/r.jsonl", ".cache/y.bin", "notes/z.txt"];
+    const OTHER: &[&str] = &[
+        ".claude/debug/x.txt",
+        ".codex/sessions/r.jsonl",
+        ".cache/y.bin",
+        "notes/z.txt",
+    ];
 
     fn broad_rule(pattern: &str) -> (LoadedTool, RuleDef) {
         let rule = RuleDef {
@@ -286,7 +337,13 @@ mod never_touch_property {
             sources: vec![],
         };
         let tool = LoadedTool {
-            tool: ToolDef { id: "test".into(), name: "Test".into(), category: "ai-tools".into(), processes: vec![], docs: None },
+            tool: ToolDef {
+                id: "test".into(),
+                name: "Test".into(),
+                category: "ai-tools".into(),
+                processes: vec![],
+                docs: None,
+            },
             rules: vec![rule.clone()],
             file: "test.toml".into(),
             builtin: false,
@@ -330,7 +387,9 @@ mod never_touch_property {
 fn running_session_is_never_selectable() {
     let h = FakeHome::new();
     copy_fixture(&h, 60.0);
-    let deleted = h.home().join(".claude/projects").join(encode(&h.home().join("code").join("deleted-app").to_string_lossy()));
+    let deleted = h.home().join(".claude/projects").join(encode(
+        &h.home().join("code").join("deleted-app").to_string_lossy(),
+    ));
     let session = deleted.join("0001.jsonl");
     let _holder = Holder::spawn(&session);
     let mut cfg = h.config();
@@ -342,9 +401,22 @@ fn running_session_is_never_selectable() {
         .iter()
         // The holder opens the transcript exclusively, so its cwd can't be read: the folder is
         // then judged by its name alone. Either way it must be protected.
-        .find(|f| f.rule_id == "claude-code.orphaned-transcripts" && f.paths.iter().any(|p| path_starts_with(&session, p)))
+        .find(|f| {
+            f.rule_id == "claude-code.orphaned-transcripts"
+                && f.paths.iter().any(|p| path_starts_with(&session, p))
+        })
         .unwrap_or_else(|| panic!("no finding covers the session: {:#?}", out.result.findings));
-    assert!(matches!(f.tier, Tier::Protected { reason: ProtectReason::InUse, .. }), "{:?}", f.tier);
+    assert!(
+        matches!(
+            f.tier,
+            Tier::Protected {
+                reason: ProtectReason::InUse,
+                ..
+            }
+        ),
+        "{:?}",
+        f.tier
+    );
     assert!(!f.is_selectable());
     let report = h.clean(std::slice::from_ref(f), out.result.started);
     assert_eq!(report.skipped, 1);
@@ -357,7 +429,9 @@ fn tool_command_exit_status_and_isolation() {
     let h = FakeHome::new();
     let p = h.file("Downloads/old.part", 1000, 5.0);
     let out = h.scan();
-    let partial = find(&out.result.findings, "downloads.partial", "old.part").unwrap().clone();
+    let partial = find(&out.result.findings, "downloads.partial", "old.part")
+        .unwrap()
+        .clone();
     let (program, args): (&str, Vec<String>) = if cfg!(windows) {
         ("cmd", vec!["/c".into(), "echo nope & exit 3".into()])
     } else {
@@ -367,15 +441,30 @@ fn tool_command_exit_status_and_isolation() {
     cmd.id = "cmd-finding".into();
     cmd.title = "Fake tool cleanup".into();
     cmd.rule_id = "test.command".into();
-    cmd.disposal = Disposal::Command { program: program.into(), args };
+    cmd.disposal = Disposal::Command {
+        program: program.into(),
+        args,
+    };
     cmd.paths = vec![h.dir("cache-dir")];
     let report = h.clean(&[cmd, partial], out.result.started);
-    let c = report.results.iter().find(|r| r.finding_id == "cmd-finding").unwrap();
+    let c = report
+        .results
+        .iter()
+        .find(|r| r.finding_id == "cmd-finding")
+        .unwrap();
     assert_eq!(c.status, ItemStatus::Failed);
     assert_eq!(c.reason, Some(FailReason::CommandFailed));
-    assert!(c.error.as_deref().unwrap().contains("code 3"), "{:?}", c.error);
+    assert!(
+        c.error.as_deref().unwrap().contains("code 3"),
+        "{:?}",
+        c.error
+    );
     assert!(c.output.as_deref().unwrap().contains("nope"));
-    let d = report.results.iter().find(|r| r.title == "old.part").unwrap();
+    let d = report
+        .results
+        .iter()
+        .find(|r| r.title == "old.part")
+        .unwrap();
     assert_eq!(d.status, ItemStatus::Ok);
     assert!(!p.exists());
 }

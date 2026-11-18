@@ -16,11 +16,15 @@ pub fn transcript_cwd(project_dir: &Path) -> Option<PathBuf> {
     let mut files: Vec<_> = platform::list_dir(project_dir)
         .ok()?
         .into_iter()
-        .filter(|e| !e.is_dir && e.name.to_string_lossy().ends_with(".jsonl") && !e.is_cloud_placeholder())
+        .filter(|e| {
+            !e.is_dir && e.name.to_string_lossy().ends_with(".jsonl") && !e.is_cloud_placeholder()
+        })
         .collect();
     files.sort_by_key(|e| e.modified);
     for f in files.iter().take(3) {
-        let Ok(file) = std::fs::File::open(project_dir.join(&f.name)) else { continue };
+        let Ok(file) = std::fs::File::open(project_dir.join(&f.name)) else {
+            continue;
+        };
         // The first records are small; never read more than 256 KB.
         let reader = BufReader::new(file.take(256 * 1024));
         for line in reader.lines().take(50).map_while(Result::ok) {
@@ -39,7 +43,9 @@ pub fn transcript_cwd(project_dir: &Path) -> Option<PathBuf> {
 /// Claude Code encodes a path by replacing every character that isn't a letter or digit with
 /// `-` (`D:\code\my-app` → `D--code-my-app`).
 pub fn encode(name: &str) -> String {
-    name.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '-' }).collect()
+    name.chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect()
 }
 
 /// Outcome of decoding a project folder name.
@@ -104,11 +110,16 @@ pub fn orphaned_transcripts(w: &Walker, base: &Base, matches: &[Match]) -> Vec<C
     let mut maybe: Vec<Match> = Vec::new();
     for m in matches {
         let Match::Item(dir) = m else { continue };
-        let Ok(meta) = platform::stat(dir) else { continue };
+        let Ok(meta) = platform::stat(dir) else {
+            continue;
+        };
         if !meta.is_traversable_dir() {
             continue;
         }
-        let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let name = dir
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
         match transcript_cwd(dir) {
             Some(cwd) => {
                 if platform::stat(&cwd).is_ok() {
@@ -150,7 +161,9 @@ pub fn orphaned_transcripts(w: &Walker, base: &Base, matches: &[Match]) -> Vec<C
     }
     if !maybe.is_empty() {
         let c = w.collect(&maybe, false);
-        for mut cand in base.with_recent_companion("Transcripts that may belong to deleted projects", c) {
+        for mut cand in
+            base.with_recent_companion("Transcripts that may belong to deleted projects", c)
+        {
             if cand.tier.is_selectable() {
                 cand.tier = Tier::Review;
                 cand.why = "Pare couldn't find the project folders these transcripts were recorded in. They may have been moved or deleted.".into();
@@ -167,8 +180,14 @@ mod tests {
 
     #[test]
     fn encoding_matches_claude_code() {
-        assert_eq!(encode(r"D:\claude-upgrade-26\file-manager"), "D--claude-upgrade-26-file-manager");
-        assert_eq!(encode(r"C:\Users\ana\.config\x y"), "C--Users-ana--config-x-y");
+        assert_eq!(
+            encode(r"D:\claude-upgrade-26\file-manager"),
+            "D--claude-upgrade-26-file-manager"
+        );
+        assert_eq!(
+            encode(r"C:\Users\ana\.config\x y"),
+            "C--Users-ana--config-x-y"
+        );
     }
 
     #[test]
@@ -179,7 +198,10 @@ mod tests {
             "{\"type\":\"summary\"}\n{\"type\":\"user\",\"cwd\":\"C:\\\\code\\\\gone\"}\n",
         )
         .unwrap();
-        assert_eq!(transcript_cwd(d.path()), Some(PathBuf::from(r"C:\code\gone")));
+        assert_eq!(
+            transcript_cwd(d.path()),
+            Some(PathBuf::from(r"C:\code\gone"))
+        );
     }
 
     #[cfg(windows)]
@@ -190,7 +212,9 @@ mod tests {
         std::fs::create_dir_all(&real).unwrap();
         let enc = encode(&real.to_string_lossy());
         match decode(&enc) {
-            Decoded::Exists(p) => assert!(platform::path_starts_with(&p, &real) && platform::path_starts_with(&real, &p)),
+            Decoded::Exists(p) => assert!(
+                platform::path_starts_with(&p, &real) && platform::path_starts_with(&real, &p)
+            ),
             other => panic!("{other:?}"),
         }
         let gone = encode(&d.path().join("deleted-project").to_string_lossy());

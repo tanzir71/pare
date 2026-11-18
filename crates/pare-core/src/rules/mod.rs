@@ -169,9 +169,19 @@ impl RuleSet {
         };
         let mut files: Vec<_> = entries.filter_map(Result::ok).map(|e| e.path()).collect();
         files.sort();
-        for p in files.into_iter().filter(|p| p.extension().is_some_and(|e| e == "toml")) {
-            let name = p.file_name().unwrap_or_default().to_string_lossy().into_owned();
-            match std::fs::read_to_string(&p).map_err(|e| e.to_string()).and_then(|t| toml::from_str::<RuleFile>(&t).map_err(|e| e.to_string())) {
+        for p in files
+            .into_iter()
+            .filter(|p| p.extension().is_some_and(|e| e == "toml"))
+        {
+            let name = p
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .into_owned();
+            match std::fs::read_to_string(&p)
+                .map_err(|e| e.to_string())
+                .and_then(|t| toml::from_str::<RuleFile>(&t).map_err(|e| e.to_string()))
+            {
                 Ok(f) => set.add(&name, f, false),
                 Err(e) => set.warnings.push(format!("{name}: {e}")),
             }
@@ -191,14 +201,21 @@ impl RuleSet {
         if !builtin {
             // User rules can add, never loosen: no commands, no direct deletes, no Safe tier on
             // anything a built-in rule already covers, and ids may not shadow built-ins.
-            let builtin_ids: BTreeSet<String> = self.all_rules().map(|(_, r)| r.id.clone()).collect();
+            let builtin_ids: BTreeSet<String> =
+                self.all_rules().map(|(_, r)| r.id.clone()).collect();
             rules.retain(|r| {
                 if builtin_ids.contains(&r.id) {
-                    self.warnings.push(format!("{name}: rule {} shadows a built-in rule and was ignored", r.id));
+                    self.warnings.push(format!(
+                        "{name}: rule {} shadows a built-in rule and was ignored",
+                        r.id
+                    ));
                     return false;
                 }
                 if r.disposal == DisposalDecl::Command {
-                    self.warnings.push(format!("{name}: rule {} uses a command, which user rules can't", r.id));
+                    self.warnings.push(format!(
+                        "{name}: rule {} uses a command, which user rules can't",
+                        r.id
+                    ));
                     return false;
                 }
                 true
@@ -222,7 +239,9 @@ impl RuleSet {
     }
 
     pub fn all_rules(&self) -> impl Iterator<Item = (&LoadedTool, &RuleDef)> {
-        self.tools.iter().flat_map(|t| t.rules.iter().map(move |r| (t, r)))
+        self.tools
+            .iter()
+            .flat_map(|t| t.rules.iter().map(move |r| (t, r)))
     }
 
     pub fn rule(&self, id: &str) -> Option<(&LoadedTool, &RuleDef)> {
@@ -254,40 +273,81 @@ pub fn validate(set: &RuleSet) -> Vec<String> {
         if !tool_ids.insert(&t.tool.id) {
             errors.push(format!("{}: duplicate tool id {}", t.file, t.tool.id));
         }
-        if !t.tool.id.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-') {
-            errors.push(format!("{}: tool id {} must be kebab-case", t.file, t.tool.id));
+        if !t
+            .tool
+            .id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        {
+            errors.push(format!(
+                "{}: tool id {} must be kebab-case",
+                t.file, t.tool.id
+            ));
         }
-        if !["ai-tools", "dev-caches", "browsers", "system", "downloads", "projects"].contains(&t.tool.category.as_str()) {
+        if ![
+            "ai-tools",
+            "dev-caches",
+            "browsers",
+            "system",
+            "downloads",
+            "projects",
+        ]
+        .contains(&t.tool.category.as_str())
+        {
             errors.push(format!("{}: unknown category {}", t.file, t.tool.category));
         }
     }
     for (t, r) in set.all_rules() {
         if let Some(prev) = ids.insert(&r.id, &t.file) {
-            errors.push(format!("{}: duplicate rule id {} (also in {prev})", t.file, r.id));
+            errors.push(format!(
+                "{}: duplicate rule id {} (also in {prev})",
+                t.file, r.id
+            ));
         }
         if !r.id.contains('.') {
-            errors.push(format!("{}: rule id {} must be <tool>.<slug>", t.file, r.id));
+            errors.push(format!(
+                "{}: rule id {} must be <tool>.<slug>",
+                t.file, r.id
+            ));
         }
         if r.paths.is_empty() {
             errors.push(format!("{}: {} has no paths", t.file, r.id));
         }
         if r.disposal == DisposalDecl::Delete && r.comes_back == ComesBack::No {
-            errors.push(format!("{}: {} deletes directly but doesn't come back (use recycle)", t.file, r.id));
+            errors.push(format!(
+                "{}: {} deletes directly but doesn't come back (use recycle)",
+                t.file, r.id
+            ));
         }
         if r.tier == TierDecl::Safe && (r.why.trim().is_empty() || r.if_removed.trim().is_empty()) {
-            errors.push(format!("{}: safe rule {} needs why and if_removed", t.file, r.id));
+            errors.push(format!(
+                "{}: safe rule {} needs why and if_removed",
+                t.file, r.id
+            ));
         }
         if r.why.trim().is_empty() || r.if_removed.trim().is_empty() {
-            errors.push(format!("{}: {} must explain why and what you lose", t.file, r.id));
+            errors.push(format!(
+                "{}: {} must explain why and what you lose",
+                t.file, r.id
+            ));
         }
         if r.disposal == DisposalDecl::Command && r.command.is_empty() {
-            errors.push(format!("{}: {} has disposal = command but no command", t.file, r.id));
+            errors.push(format!(
+                "{}: {} has disposal = command but no command",
+                t.file, r.id
+            ));
         }
         if r.disposal == DisposalDecl::Guide && r.guide.is_empty() {
-            errors.push(format!("{}: {} has disposal = guide but no steps", t.file, r.id));
+            errors.push(format!(
+                "{}: {} has disposal = guide but no steps",
+                t.file, r.id
+            ));
         }
         if !r.detector.is_empty() && !engine::DETECTORS.contains(&r.detector.as_str()) {
-            errors.push(format!("{}: {} uses unknown detector {}", t.file, r.id, r.detector));
+            errors.push(format!(
+                "{}: {} uses unknown detector {}",
+                t.file, r.id, r.detector
+            ));
         }
     }
     errors
@@ -353,8 +413,15 @@ if_removed = "y"
         .unwrap();
         let set = RuleSet::with_user_rules(dir.path());
         let (_, r) = set.rule("my-tool.cache").unwrap();
-        assert_eq!(r.disposal, DisposalDecl::Recycle, "user rules never delete directly");
-        assert!(set.rule("my-tool.run").is_none(), "user rules can't run commands");
+        assert_eq!(
+            r.disposal,
+            DisposalDecl::Recycle,
+            "user rules never delete directly"
+        );
+        assert!(
+            set.rule("my-tool.run").is_none(),
+            "user rules can't run commands"
+        );
         let (t, _) = set.rule("npm.cache").unwrap();
         assert!(t.builtin, "built-in rule wins");
         assert_eq!(set.warnings.len(), 2);

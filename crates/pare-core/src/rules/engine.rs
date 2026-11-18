@@ -14,7 +14,9 @@ use crate::format::{age_phrase, format_bytes};
 use crate::platform::{self, RawEntry};
 use crate::safety::protected_paths;
 use crate::scan::measure::{Candidate, FileAcc, Measured, account};
-use crate::types::{CategoryId, ComesBack, Dates, Disposal, MS_PER_DAY, ProtectReason, Tier, Timestamp};
+use crate::types::{
+    CategoryId, ComesBack, Dates, Disposal, MS_PER_DAY, ProtectReason, Tier, Timestamp,
+};
 
 /// Built-in detectors rules may reference (`detector = "…"`).
 pub const DETECTORS: &[&str] = &["claude.orphaned_transcripts", "codex.superseded_releases"];
@@ -48,7 +50,12 @@ pub fn run_category(set: &RuleSet, ctx: &RuleCtx, category: CategoryId) -> Vec<C
 }
 
 /// Run one rule.
-pub fn run_rule(tool: &LoadedTool, rule: &RuleDef, ctx: &RuleCtx, protect: &PathSet) -> Vec<Candidate> {
+pub fn run_rule(
+    tool: &LoadedTool,
+    rule: &RuleDef,
+    ctx: &RuleCtx,
+    protect: &PathSet,
+) -> Vec<Candidate> {
     if rule.admin && !ctx.elevated {
         return Vec::new();
     }
@@ -58,13 +65,20 @@ pub fn run_rule(tool: &LoadedTool, rule: &RuleDef, ctx: &RuleCtx, protect: &Path
         .flat_map(|p| vars::expand(p, ctx.env, ctx.drives))
         .filter_map(|p| PathPattern::compile(&p))
         .collect();
-    let within = |m: &Match| ctx.within.is_none_or(|roots| roots.iter().any(|r| platform::path_starts_with(m.path(), r)));
+    let within = |m: &Match| {
+        ctx.within.is_none_or(|roots| {
+            roots
+                .iter()
+                .any(|r| platform::path_starts_with(m.path(), r))
+        })
+    };
     let mut matches: Vec<Match> = Vec::new();
     for p in &patterns {
         let mut found: Vec<Match> = p.find().into_iter().filter(|m| within(m)).collect();
         if rule.keep_newest > 0 && rule.detector.is_empty() {
             // keep_newest applies to versioned items (`…/versions/*`), never to `/**` contents.
-            let (items, contents): (Vec<Match>, Vec<Match>) = found.into_iter().partition(|m| matches!(m, Match::Item(_)));
+            let (items, contents): (Vec<Match>, Vec<Match>) =
+                found.into_iter().partition(|m| matches!(m, Match::Item(_)));
             found = keep_newest(items, rule.keep_newest as usize);
             found.extend(contents);
         }
@@ -88,8 +102,12 @@ pub fn run_rule(tool: &LoadedTool, rule: &RuleDef, ctx: &RuleCtx, protect: &Path
     let base = Base::new(tool, rule, ctx, &patterns);
 
     match rule.detector.as_str() {
-        "claude.orphaned_transcripts" => return crate::detectors::claude::orphaned_transcripts(&w, &base, &matches),
-        "codex.superseded_releases" => return crate::detectors::codex::superseded_releases(&w, &base, &matches),
+        "claude.orphaned_transcripts" => {
+            return crate::detectors::claude::orphaned_transcripts(&w, &base, &matches);
+        }
+        "codex.superseded_releases" => {
+            return crate::detectors::codex::superseded_releases(&w, &base, &matches);
+        }
         _ => {}
     }
 
@@ -140,7 +158,10 @@ pub fn run_rule(tool: &LoadedTool, rule: &RuleDef, ctx: &RuleCtx, protect: &Path
                     m.bytes = 0;
                     m.logical = 0;
                 }
-                cand.note = Some(format!("Frees only what no project uses (store: {})", format_bytes(size)));
+                cand.note = Some(format!(
+                    "Frees only what no project uses (store: {})",
+                    format_bytes(size)
+                ));
                 cand.facts.push(("Store size".into(), format_bytes(size)));
             }
             vec![cand]
@@ -202,7 +223,9 @@ impl Walker<'_> {
                     }
                 }
                 Match::Contents(d) => {
-                    let Ok(children) = platform::list_dir(d) else { continue };
+                    let Ok(children) = platform::list_dir(d) else {
+                        continue;
+                    };
                     for e in children {
                         let p = d.join(&e.name);
                         if self.visit(&p, &e, everything, &mut c) {
@@ -224,7 +247,11 @@ impl Walker<'_> {
         if self.blocked(path) {
             return false;
         }
-        let min_age = if everything { 0 } else { self.rule.min_age_days.unwrap_or(0) as i64 * MS_PER_DAY };
+        let min_age = if everything {
+            0
+        } else {
+            self.rule.min_age_days.unwrap_or(0) as i64 * MS_PER_DAY
+        };
         let too_new = |t: Timestamp| t > self.ctx.now - min_age;
         let recent = |t: Timestamp| !everything && t > self.ctx.now - self.ctx.recent_ms;
 
@@ -293,7 +320,12 @@ pub struct Base<'a> {
 }
 
 impl<'a> Base<'a> {
-    fn new(tool: &'a LoadedTool, rule: &'a RuleDef, ctx: &RuleCtx, patterns: &[PathPattern]) -> Base<'a> {
+    fn new(
+        tool: &'a LoadedTool,
+        rule: &'a RuleDef,
+        ctx: &RuleCtx,
+        patterns: &[PathPattern],
+    ) -> Base<'a> {
         Base {
             tool,
             rule,
@@ -336,7 +368,10 @@ impl<'a> Base<'a> {
             _ => Tier::Review,
         };
         if !self.rule.verified {
-            cand.facts.push(("Rule status".into(), "Not yet checked on a real PC, so it's shown as Review".into()));
+            cand.facts.push((
+                "Rule status".into(),
+                "Not yet checked on a real PC, so it's shown as Review".into(),
+            ));
         }
         cand.disposal = self.disposal();
         cand.comes_back = self.rule.comes_back;
@@ -375,14 +410,19 @@ impl<'a> Base<'a> {
         if !recent.is_empty() {
             let bytes: u64 = recent.iter().map(|f| f.allocated).sum();
             if bytes >= 1_000_000 {
-                let mut k = Candidate::new(&self.rule.id, self.category, format!("{title}: used in the last 24 hours"));
+                let mut k = Candidate::new(
+                    &self.rule.id,
+                    self.category,
+                    format!("{title}: used in the last 24 hours"),
+                );
                 k.source = self.tool.tool.name.clone();
                 k.source_path = self.source_path.clone();
                 k.created_by = Some(self.tool.tool.name.clone());
                 k.tier = Tier::protected(ProtectReason::RecentlyModified);
                 k.disposal = self.disposal();
                 k.comes_back = self.rule.comes_back;
-                k.why = "These files changed in the last 24 hours, so Pare leaves them alone.".into();
+                k.why =
+                    "These files changed in the last 24 hours, so Pare leaves them alone.".into();
                 k.if_removed = "Nothing: Pare doesn't remove recently used files.".into();
                 k.note = Some("Active now".into());
                 let newest = recent.iter().map(|f| f.modified).max().unwrap_or(0);
@@ -408,7 +448,10 @@ impl<'a> Base<'a> {
 
 /// Is any process from `names` running (case-insensitive)?
 pub fn any_running(names: &[String], running: &HashSet<String>) -> Option<String> {
-    names.iter().find(|n| running.contains(&n.to_lowercase())).cloned()
+    names
+        .iter()
+        .find(|n| running.contains(&n.to_lowercase()))
+        .cloned()
 }
 
 /// Group sizes per rule id, for `pare rules check` and tests.

@@ -12,6 +12,7 @@ import type {
   HistoryDetail,
   HistoryOp,
   KnownFolders,
+  ProjectsView,
   ProgressPayload,
   PurgeReport,
   RestoreReport,
@@ -75,6 +76,8 @@ export const api = {
   settingsSet: (patch: Partial<Settings>) => call<Settings>("settings_set", { patch }),
   exclusionAdd: (path: string) => call<Settings>("exclusion_add", { path }),
   openInExplorer: (path: string) => call<void>("open_in_explorer", { path }),
+  projectsList: () => call<ProjectsView>("projects_list"),
+  projectsScan: () => call<ProjectsView>("projects_scan"),
 };
 
 export interface Events {
