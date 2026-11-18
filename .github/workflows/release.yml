@@ -1,0 +1,54 @@
+name: Release
+
+# Builds the Windows installer when a version tag is pushed (v0.1.0, …) and attaches it to a
+# *draft* GitHub Release. A maintainer reviews the draft and publishes it by hand.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p pare-core --release
+      - name: Release notes
+        shell: pwsh
+        run: |
+          $notes = Get-Content .github/release/NOTES.md -Raw
+          $notes = $notes.Replace('{version}', '${{ github.ref_name }}')
+          "RELEASE_BODY<<EOF" >> $env:GITHUB_ENV
+          $notes >> $env:GITHUB_ENV
+          "EOF" >> $env:GITHUB_ENV
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: Pare ${{ github.ref_name }}
+          releaseBody: ${{ env.RELEASE_BODY }}
+          releaseDraft: true
+          prerelease: false
+          args: --bundles nsis
+      - name: Checksums
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $files = Get-ChildItem target/release/bundle/nsis/*.exe
+          $lines = $files | ForEach-Object { "{0}  {1}" -f (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower(), $_.Name }
+          $lines | Set-Content SHA256SUMS.txt
+          gh release upload ${{ github.ref_name }} SHA256SUMS.txt --clobber

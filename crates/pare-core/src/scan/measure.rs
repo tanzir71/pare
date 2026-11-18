@@ -39,6 +39,69 @@ pub struct Candidate {
     pub admin: bool,
     /// Processes that must not be running (rule `requires_closed`).
     pub requires_closed: Vec<String>,
+    /// Sizes the rule engine already computed while walking (skips re-measuring).
+    pub measured: Option<Measured>,
+}
+
+/// Precomputed measurement for candidates found outside the scan tree.
+#[derive(Clone, Debug, Default)]
+pub struct Measured {
+    pub bytes: u64,
+    pub logical: u64,
+    pub items: u64,
+    pub dates: Dates,
+    pub newest: Timestamp,
+    pub recent_files: Vec<PathBuf>,
+}
+
+/// One file to account for (see [`account`]).
+#[derive(Clone, Debug)]
+pub struct FileAcc {
+    pub path: PathBuf,
+    pub allocated: u64,
+    pub logical: u64,
+    pub file_id: u128,
+    pub links: u32,
+    pub modified: Timestamp,
+}
+
+/// Honest totals for a set of files: link counts fetched where unknown, each file id counted
+/// once, and a hard-linked file counted only if all its links are in the set.
+/// Returns (allocated, logical, distinct files).
+pub fn account(files: &mut [FileAcc]) -> (u64, u64, u64) {
+    let need: Vec<usize> = files
+        .iter()
+        .enumerate()
+        .filter(|(_, f)| f.links == 0 && f.allocated > 0)
+        .map(|(i, _)| i)
+        .collect();
+    let queried: Vec<(usize, u32)> = need
+        .par_iter()
+        .map(|&i| (i, platform::link_count(&files[i].path).map(|(l, _)| l).unwrap_or(1)))
+        .collect();
+    for (i, l) in queried {
+        files[i].links = l;
+    }
+    let mut occurrences: HashMap<u128, u32> = HashMap::new();
+    for f in files.iter() {
+        if f.file_id != 0 {
+            *occurrences.entry(f.file_id).or_default() += 1;
+        }
+    }
+    let mut counted: HashSet<u128> = HashSet::new();
+    let (mut a, mut l, mut n) = (0u64, 0u64, 0u64);
+    for f in files.iter() {
+        if f.file_id != 0 && !counted.insert(f.file_id) {
+            continue;
+        }
+        n += 1;
+        let occ = if f.file_id != 0 { occurrences[&f.file_id] } else { 1 };
+        if f.links <= 1 || occ >= f.links {
+            a += f.allocated;
+            l += f.logical;
+        }
+    }
+    (a, l, n)
 }
 
 impl Candidate {
@@ -64,6 +127,7 @@ impl Candidate {
             facts: Vec::new(),
             admin: false,
             requires_closed: Vec::new(),
+            measured: None,
         }
     }
 }
@@ -114,7 +178,12 @@ pub fn measure(c: Candidate, tree: &Tree) -> (Finding, Probe) {
         requires_closed: c.requires_closed.clone(),
         ..Probe::default()
     };
-    let (bytes, logical_bytes, items) = if let Some((b, i)) = c.fixed_size {
+    let (bytes, logical_bytes, items) = if let Some(m) = c.measured.clone() {
+        dates = m.dates;
+        probe.newest = m.newest;
+        probe.recent_files = m.recent_files;
+        (m.bytes, m.logical, m.items)
+    } else if let Some((b, i)) = c.fixed_size {
         (b, b, i)
     } else {
         // Collect files (dedupe overlapping targets by node).
