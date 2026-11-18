@@ -1,0 +1,22 @@
+# Cache only. Never cookies, history, passwords, sessions or extensions.
+[tool]
+id = "browsers"
+name = "Browsers"
+category = "browsers"
+processes = ["chrome.exe", "msedge.exe"]
+
+[[protect]]
+paths = ["**/User Data/*/Cookies*", "**/User Data/*/History*", "**/User Data/*/Login Data*", "**/User Data/*/Web Data*", "**/User Data/*/Extensions/**", "**/User Data/*/Sessions/**"]
+
+[[rule]]
+id = "browsers.cache"
+title = "Browser caches"
+paths = ["%LOCALAPPDATA%/Google/Chrome/User Data/*/Cache/**", "%LOCALAPPDATA%/Google/Chrome/User Data/*/Code Cache/**", "%LOCALAPPDATA%/Google/Chrome/User Data/*/GPUCache/**",
+         "%LOCALAPPDATA%/Microsoft/Edge/User Data/*/Cache/**", "%LOCALAPPDATA%/Microsoft/Edge/User Data/*/Code Cache/**", "%LOCALAPPDATA%/Microsoft/Edge/User Data/*/GPUCache/**"]
+tier = "safe"
+disposal = "delete"
+requires_closed = true
+comes_back = "automatically"
+why = "Copies of web pages and scripts the browser keeps to load sites faster."
+if_removed = "Sites load a little slower the first time. You stay signed in."
+verified = false

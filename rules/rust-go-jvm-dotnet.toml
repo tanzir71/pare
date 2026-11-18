@@ -1,0 +1,78 @@
+[tool]
+id = "toolchains"
+name = "Rust, Go, JVM & .NET"
+category = "dev-caches"
+processes = ["cargo.exe", "rustc.exe", "go.exe", "java.exe", "dotnet.exe"]
+
+[[protect]]
+paths = ["~/.cargo/bin/**", "~/.cargo/config*", "~/.m2/settings.xml", "~/.gradle/gradle.properties", "~/.nuget/NuGet/NuGet.Config"]
+
+[[rule]]
+id = "cargo.registry"
+title = "Cargo registry and git caches"
+paths = ["~/.cargo/registry/cache/**", "~/.cargo/registry/src/**", "~/.cargo/git/checkouts/**"]
+tier = "safe"
+disposal = "delete"
+comes_back = "on-demand"
+why = "Crate downloads and extracted sources."
+if_removed = "Cargo downloads crates again on the next build."
+verified = false
+
+[[rule]]
+id = "go.build-cache"
+title = "Go build cache"
+paths = ["${GOCACHE:-%LOCALAPPDATA%/go-build}/**"]
+tier = "safe"
+disposal = "command"
+command = ["go", "clean", "-cache"]
+comes_back = "automatically"
+why = "Compiled package outputs."
+if_removed = "The next build is slower once."
+verified = false
+
+[[rule]]
+id = "gradle.caches"
+title = "Gradle caches and old wrappers"
+paths = ["~/.gradle/caches/**", "~/.gradle/wrapper/dists/*"]
+keep_newest = 1
+tier = "safe"
+disposal = "delete"
+requires_closed = true
+comes_back = "on-demand"
+why = "Downloaded dependencies, build caches and Gradle distributions."
+if_removed = "Gradle downloads what it needs on the next build."
+verified = false
+
+[[rule]]
+id = "maven.repository"
+title = "Maven local repository"
+paths = ["~/.m2/repository/**"]
+tier = "review"
+disposal = "recycle"
+comes_back = "on-demand"
+why = "Downloaded Java dependencies, plus anything installed locally with 'mvn install'."
+if_removed = "Builds re-download dependencies; locally installed snapshots are lost."
+verified = false
+
+[[rule]]
+id = "nuget.http-cache"
+title = "NuGet HTTP and plugin caches"
+paths = ["%LOCALAPPDATA%/NuGet/v3-cache/**", "%LOCALAPPDATA%/NuGet/plugins-cache/**", "%TEMP%/NuGetScratch/**"]
+tier = "safe"
+disposal = "delete"
+comes_back = "on-demand"
+why = "Cached NuGet feed responses and scratch files."
+if_removed = "NuGet fetches them again on restore."
+verified = false
+
+[[rule]]
+id = "nuget.packages"
+title = "NuGet global packages"
+paths = ["~/.nuget/packages/**"]
+tier = "review"
+disposal = "command"
+command = ["dotnet", "nuget", "locals", "global-packages", "--clear"]
+comes_back = "on-demand"
+why = "Every package version restored by .NET projects."
+if_removed = "The next restore downloads the packages again (can be slow)."
+verified = false

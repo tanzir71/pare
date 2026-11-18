@@ -1,0 +1,29 @@
+[tool]
+id = "python"
+name = "Python tools"
+category = "dev-caches"
+processes = ["python.exe", "uv.exe"]
+
+[[rule]]
+id = "pip.cache"
+title = "pip cache"
+paths = ["%LOCALAPPDATA%/pip/Cache/**"]
+tier = "safe"
+disposal = "delete"
+comes_back = "on-demand"
+why = "Wheels and HTTP responses pip cached."
+if_removed = "pip downloads packages again when needed."
+verified = false
+
+[[rule]]
+id = "uv.cache"
+title = "uv cache"
+paths = ["%LOCALAPPDATA%/uv/cache/**"]
+tier = "safe"
+disposal = "command"
+command = ["uv", "cache", "prune"]
+comes_back = "on-demand"
+why = "uv's package cache."
+if_removed = "uv re-downloads packages on the next sync."
+verified = false
+sources = ["https://github.com/astral-sh/uv/issues/7008"]

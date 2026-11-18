@@ -1,0 +1,49 @@
+name: Bug report
+description: Something in Pare didn't work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. If Pare removed something it shouldn't have, please say so in the title — those reports get looked at first.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Scan Downloads
+        2. Open "Downloads"
+        3. ...
+  - type: input
+    id: version
+    attributes:
+      label: Pare version
+      description: Settings → About shows it.
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+  - type: textarea
+    id: log
+    attributes:
+      label: Operation log (optional)
+      description: |
+        Relevant lines from %LOCALAPPDATA%\Pare\logs\operations.jsonl. Remove anything you don't want to share (paths can contain your user name).
+      render: json
+  - type: checkboxes
+    id: data-loss
+    attributes:
+      label: Data loss
+      options:
+        - label: Pare removed something it shouldn't have

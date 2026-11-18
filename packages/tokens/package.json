@@ -1,0 +1,19 @@
+{
+  "name": "@pare/tokens",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Design tokens: design/tokens.json -> CSS variables and a Tailwind v4 @theme file.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    "./tokens.css": "./dist/tokens.css",
+    "./theme.css": "./dist/theme.css",
+    "./tokens.json": "./dist/tokens.json"
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "node build.mjs",
+    "check": "node build.mjs --check",
+    "test": "node --test \"test/*.test.mjs\""
+  }
+}

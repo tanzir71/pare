@@ -1,0 +1,41 @@
+[tool]
+id = "node"
+name = "Node.js package managers"
+category = "dev-caches"
+processes = ["node.exe"]
+
+[[rule]]
+id = "npm.cache"
+title = "npm download cache"
+paths = ["%LOCALAPPDATA%/npm-cache/**", "%APPDATA%/npm-cache/**"]
+tier = "safe"
+disposal = "delete"
+comes_back = "on-demand"
+why = "Package tarballs and metadata npm downloaded before."
+if_removed = "npm downloads packages again when you install."
+verified = false
+sources = ["https://docs.npmjs.com/cli/using-npm/config#cache", "https://github.com/nodejs/help/issues/2915"]
+
+[[rule]]
+id = "pnpm.store"
+title = "pnpm store (unreferenced packages)"
+paths = ["%LOCALAPPDATA%/pnpm/store/**", "%LOCALAPPDATA%/pnpm-store/**"]
+tier = "safe"
+disposal = "command"
+command = ["pnpm", "store", "prune"]
+comes_back = "on-demand"
+why = "pnpm's shared package store. Pruning removes packages no project references."
+if_removed = "Projects still work; pnpm re-downloads anything missing."
+verified = false
+sources = ["https://usekudu.com/cleaners/pnpm"]
+
+[[rule]]
+id = "yarn.cache"
+title = "Yarn cache"
+paths = ["%LOCALAPPDATA%/Yarn/Cache/**", "%LOCALAPPDATA%/Yarn/Berry/cache/**"]
+tier = "safe"
+disposal = "delete"
+comes_back = "on-demand"
+why = "Packages Yarn downloaded before."
+if_removed = "Yarn downloads them again on install."
+verified = false

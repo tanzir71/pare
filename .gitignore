@@ -1,0 +1,26 @@
+# Node
+node_modules/
+dist/
+!packages/tokens/dist/
+.astro/
+*.tsbuildinfo
+.eslintcache
+coverage/
+
+# Rust
+/target/
+**/target/
+apps/desktop/src-tauri/gen/schemas/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Local
+.env
+.env.*
+*.log
+lighthouse/

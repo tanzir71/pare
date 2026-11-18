@@ -1,0 +1,89 @@
+# Claude Code CLI data under %USERPROFILE%\.claude
+# verified=false until checked on a real Windows 11 machine (M3).
+
+[tool]
+id = "claude-code"
+name = "Claude Code"
+category = "ai-tools"
+processes = ["claude.exe", "node.exe"]
+docs = "https://docs.claude.com/en/docs/claude-code/settings"
+
+[[protect]]
+paths = ["~/.claude/settings*.json", "~/.claude.json", "~/.claude/CLAUDE.md", "~/.claude/agents/**", "~/.claude/commands/**", "~/.claude/skills/**", "~/.claude/projects/*/memory/**", "~/.claude/.credentials*"]
+
+[[rule]]
+id = "claude-code.debug-logs"
+title = "Debug logs older than 7 days"
+paths = ["~/.claude/debug/**"]
+min_age_days = 7
+tier = "safe"
+disposal = "delete"
+comes_back = "automatically"
+why = "Diagnostic logs Claude Code writes while it runs. They can grow to several GB."
+if_removed = "Old debug output is gone. Claude Code keeps working and writes new logs."
+verified = false
+sources = ["https://github.com/anthropics/claude-code/issues/11646", "https://claudeissues.com/issue/24486-feature-add-automatic-garbage-collection-for-claude-cache-directories"]
+
+[[rule]]
+id = "claude-code.orphaned-transcripts"
+title = "Transcripts of deleted projects"
+paths = ["~/.claude/projects/*"]
+detector = "claude.orphaned_transcripts"
+tier = "safe"
+disposal = "recycle"
+comes_back = "no"
+why = "These session transcripts belong to project folders that no longer exist on this PC."
+if_removed = "You can't resume those old sessions. Current projects are unaffected."
+verified = false
+sources = ["https://github.com/anthropics/claude-code/issues/24207"]
+
+[[rule]]
+id = "claude-code.old-transcripts"
+title = "Session transcripts older than 30 days"
+paths = ["~/.claude/projects/*/*.jsonl"]
+min_age_days = 30
+tier = "review"
+disposal = "recycle"
+comes_back = "no"
+why = "Old conversation transcripts. Claude Code's own cleanupPeriodDays setting controls how long it keeps them."
+if_removed = "You can't resume or review these sessions."
+verified = false
+sources = ["https://bestagent.dev/claude-code-disk-usage-cleanup"]
+
+[[rule]]
+id = "claude-code.file-history"
+title = "File-history snapshots older than 30 days"
+paths = ["~/.claude/file-history/**"]
+min_age_days = 30
+tier = "safe"
+disposal = "recycle"
+comes_back = "no"
+why = "Snapshots Claude Code keeps so it can rewind edits in past sessions."
+if_removed = "You can't rewind edits from those old sessions."
+verified = false
+sources = ["https://claudeissues.com/issue/24486-feature-add-automatic-garbage-collection-for-claude-cache-directories"]
+
+[[rule]]
+id = "claude-code.caches"
+title = "Plugin and paste caches"
+paths = ["~/.claude/cache/**", "~/.claude/plugins/cache/**", "~/.claude/paste-cache/**"]
+tier = "safe"
+disposal = "delete"
+comes_back = "on-demand"
+why = "Downloaded plugin archives and temporary paste data."
+if_removed = "Claude Code downloads or recreates them when needed."
+verified = false
+sources = ["https://usekudu.com/cleaners/claude-code-cache"]
+
+[[rule]]
+id = "claude-code.old-versions"
+title = "Superseded Claude Code versions"
+paths = ["~/.local/share/claude/versions/*"]
+keep_newest = 2
+tier = "safe"
+disposal = "delete"
+comes_back = "on-demand"
+why = "Older builds left behind by the native installer's auto-update."
+if_removed = "Nothing changes; the current version stays."
+verified = false   # path confirmed on macOS by other cleaners; check the Windows layout
+sources = ["https://mole.fit/blog/how-to-clean-up-ai-coding-tools-mac"]

@@ -1,0 +1,44 @@
+[tool]
+id = "local-models"
+name = "Local AI models"
+category = "ai-tools"
+processes = ["ollama.exe", "ollama app.exe", "LM Studio.exe"]
+
+[[rule]]
+id = "ollama.models"
+title = "Ollama models not used in 30 days"
+paths = ["${OLLAMA_MODELS:-~/.ollama/models}/manifests/**"]
+min_age_days = 30
+tier = "review"
+disposal = "command"
+command = ["ollama", "rm", "{model}"]
+comes_back = "on-demand"
+why = "Downloaded model weights. Each one is often several GB."
+if_removed = "Run 'ollama pull' to download a model again."
+verified = false
+sources = ["https://docs.ollama.com/windows"]
+
+[[rule]]
+id = "lmstudio.models"
+title = "LM Studio models"
+paths = ["~/.lmstudio/models/**", "~/.cache/lm-studio/models/**"]
+min_age_days = 30
+tier = "review"
+disposal = "recycle"
+comes_back = "on-demand"
+why = "Downloaded model files."
+if_removed = "Download them again from LM Studio."
+verified = false
+sources = ["https://inventivehq.com/blog/share-models-folder-across-local-ai-tools"]
+
+[[rule]]
+id = "huggingface.hub"
+title = "Hugging Face model cache"
+paths = ["${HF_HUB_CACHE:-${HF_HOME:-~/.cache/huggingface}/hub}/models--*"]
+min_age_days = 30
+tier = "review"
+disposal = "recycle"
+comes_back = "on-demand"
+why = "Models and datasets downloaded by Python libraries."
+if_removed = "They download again the next time code asks for them."
+verified = false

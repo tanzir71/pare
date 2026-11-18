@@ -1,0 +1,57 @@
+name: Cleanup rule request
+description: Ask Pare to recognise a tool's cache, logs or data.
+labels: [rule]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Rules live in `rules/*.toml` (schema: docs/RULES.md). The more exact you are, the faster a rule ships.
+  - type: input
+    id: tool
+    attributes:
+      label: Tool
+      placeholder: e.g. Bun, Poetry, Android Studio
+    validations:
+      required: true
+  - type: textarea
+    id: path
+    attributes:
+      label: Path
+      description: The exact folder or file pattern on Windows. Use %LOCALAPPDATA%, %APPDATA%, %TEMP% or ~ instead of your user name.
+      placeholder: "%LOCALAPPDATA%\\bun\\install\\cache"
+    validations:
+      required: true
+  - type: textarea
+    id: contents
+    attributes:
+      label: What it contains
+      description: Caches, logs, downloaded packages, session history, models…
+    validations:
+      required: true
+  - type: dropdown
+    id: safe
+    attributes:
+      label: Safe to delete?
+      options:
+        - "Yes — the tool rebuilds it automatically"
+        - "Yes — it re-downloads when needed"
+        - "Only to the Recycle Bin — it's history or user data"
+        - "No — Pare should only show a guide"
+        - "Not sure"
+    validations:
+      required: true
+  - type: input
+    id: command
+    attributes:
+      label: Does the tool have its own cleanup command?
+      placeholder: e.g. bun pm cache rm
+  - type: textarea
+    id: verify
+    attributes:
+      label: How did you verify it?
+      description: Tool version, Windows version, and what happened after you removed it.
+  - type: input
+    id: size
+    attributes:
+      label: Typical size
+      placeholder: e.g. 2–8 GB

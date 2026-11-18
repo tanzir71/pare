@@ -1,0 +1,74 @@
+# Marker file → artifact directories (M4). An artifact is suggested ONLY if git
+# reports it as ignored. Tier comes from git state; non-git projects are Review.
+
+[[ecosystem]]
+id = "node"
+markers = ["package.json"]
+artifacts = ["node_modules", ".next", ".nuxt", ".svelte-kit", ".turbo", ".parcel-cache", ".vite", "dist", "build", "coverage"]
+rebuild = "npm install / pnpm install / yarn"
+
+[[ecosystem]]
+id = "rust"
+markers = ["Cargo.toml"]
+artifacts = ["target"]
+rebuild = "cargo build"
+
+[[ecosystem]]
+id = "python"
+markers = ["pyproject.toml", "requirements.txt", "setup.py"]
+artifacts = [".venv", "venv", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox", "build", "dist"]
+rebuild = "uv sync / pip install -r requirements.txt"
+
+[[ecosystem]]
+id = "dotnet"
+markers = ["*.csproj", "*.fsproj", "*.sln"]
+artifacts = ["bin", "obj"]
+rebuild = "dotnet build"
+
+[[ecosystem]]
+id = "jvm"
+markers = ["build.gradle", "build.gradle.kts", "pom.xml"]
+artifacts = ["build", ".gradle", "target"]
+rebuild = "gradle build / mvn package"
+
+[[ecosystem]]
+id = "flutter"
+markers = ["pubspec.yaml"]
+artifacts = ["build", ".dart_tool"]
+rebuild = "flutter pub get"
+
+[[ecosystem]]
+id = "cmake"
+markers = ["CMakeLists.txt"]
+artifacts = ["build", "cmake-build-*", "out"]
+rebuild = "cmake --build"
+
+[[ecosystem]]
+id = "unity"
+markers = ["ProjectSettings/ProjectVersion.txt"]
+artifacts = ["Library", "Temp", "Obj", "Logs"]
+rebuild = "Open the project in Unity"
+
+[[ecosystem]]
+id = "unreal"
+markers = ["*.uproject"]
+artifacts = ["Intermediate", "Saved", "DerivedDataCache", "Binaries"]
+rebuild = "Open the project in Unreal Editor"
+
+[[ecosystem]]
+id = "elixir"
+markers = ["mix.exs"]
+artifacts = ["_build", "deps"]
+rebuild = "mix deps.get && mix compile"
+
+[[ecosystem]]
+id = "zig"
+markers = ["build.zig"]
+artifacts = [".zig-cache", "zig-cache", "zig-out"]
+rebuild = "zig build"
+
+[[ecosystem]]
+id = "godot"
+markers = ["project.godot"]
+artifacts = [".godot"]
+rebuild = "Open the project in Godot"

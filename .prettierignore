@@ -1,0 +1,7 @@
+dist
+target
+pnpm-lock.yaml
+packages/tokens/dist
+docs
+rules
+*.md

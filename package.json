@@ -1,0 +1,29 @@
+{
+  "name": "pare-monorepo",
+  "private": true,
+  "description": "Pare: a calm, explain-everything cleanup app for Windows.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "tokens": "pnpm --filter @pare/tokens build",
+    "tokens:check": "pnpm --filter @pare/tokens check",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.14.0",
+    "prettier": "3.10.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.73.0"
+  }
+}

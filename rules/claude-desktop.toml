@@ -1,0 +1,49 @@
+# Claude desktop app (Electron). Installs may be classic (%APPDATA%\Claude) or MSIX
+# (%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\...). Match both.
+
+[tool]
+id = "claude-desktop"
+name = "Claude desktop app"
+category = "ai-tools"
+processes = ["claude.exe", "vmwp.exe"]
+
+[[rule]]
+id = "claude-desktop.electron-cache"
+title = "App caches"
+paths = ["%APPDATA%/Claude/Cache/**", "%APPDATA%/Claude/Code Cache/**", "%APPDATA%/Claude/GPUCache/**",
+         "%LOCALAPPDATA%/Packages/Claude_*/LocalCache/Roaming/Claude/Cache/**"]
+tier = "safe"
+disposal = "delete"
+requires_closed = true
+comes_back = "automatically"
+why = "Browser-engine caches the desktop app rebuilds on launch."
+if_removed = "The next launch may be a little slower while caches rebuild."
+verified = false
+
+[[rule]]
+id = "claude-desktop.vm-bundle-archive"
+title = "Compressed VM image kept after setup"
+paths = ["%APPDATA%/Claude/vm_bundles/*/rootfs.vhdx.zst",
+         "%LOCALAPPDATA%/Packages/Claude_*/LocalCache/*/Claude/vm_bundles/*/rootfs.vhdx.zst"]
+tier = "review"
+disposal = "recycle"
+requires_closed = true
+comes_back = "on-demand"
+why = "A compressed copy of the app's Linux VM disk, kept after it was extracted."
+if_removed = "The app may download it again if the VM needs to be rebuilt."
+verified = false
+sources = ["https://claudeissues.com/issue/47395-bug-claude-desktop-vm-bundle-uses-11-3-gb-requesting-optimization"]
+
+[[rule]]
+id = "claude-desktop.vm-bundle"
+title = "Desktop app VM bundle"
+paths = ["%APPDATA%/Claude/vm_bundles/**", "%LOCALAPPDATA%/Packages/Claude_*/LocalCache/*/Claude/vm_bundles/**"]
+exclude = ["**/rootfs.vhdx.zst"]
+tier = "review"
+disposal = "guide"
+guide = ["Quit the Claude desktop app from the tray.", "If the files are still locked, restart Windows (Hyper-V can hold them).", "Delete the vm_bundles folder; the app downloads a fresh copy (about 10 GB) the next time a VM feature is used."]
+comes_back = "on-demand"
+why = "The Linux VM image the desktop app uses for its agentic workspace features (often 10 GB+)."
+if_removed = "Those features re-download the image on next use."
+verified = false
+sources = ["https://claudeissues.com/issue/29986-bug-cowork-vm-bundles-in-appdata-roaming-cause-windows-explorer-freeze-when-navi", "https://claudeissues.com/issue/25013-bug-claude-desktop-leaves-10gb-of-data-in-appdata-after-uninstall"]

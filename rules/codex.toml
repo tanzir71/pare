@@ -1,0 +1,50 @@
+# OpenAI Codex CLI data under %USERPROFILE%\.codex
+# Codex indexes rollouts in SQLite; deleting JSONL by hand can orphan threads.
+# Prefer Codex's own commands when available, otherwise send to the Recycle Bin.
+
+[tool]
+id = "codex"
+name = "Codex"
+category = "ai-tools"
+processes = ["codex.exe", "node.exe"]
+
+[[protect]]
+paths = ["~/.codex/config.toml", "~/.codex/auth.json", "~/.codex/AGENTS.md", "~/.codex/memories/**"]
+
+[[rule]]
+id = "codex.archived-sessions"
+title = "Archived sessions"
+paths = ["~/.codex/archived_sessions/**"]
+tier = "review"
+disposal = "recycle"
+comes_back = "no"
+why = "Sessions you archived. Archiving moves them here but doesn't free space."
+if_removed = "You can't reopen these archived sessions."
+verified = false
+sources = ["https://aident.ai/blog/fix-codex-session-jsonl-disk-space"]
+
+[[rule]]
+id = "codex.old-sessions"
+title = "Sessions older than 30 days"
+paths = ["~/.codex/sessions/**/rollout-*.jsonl"]
+min_age_days = 30
+tier = "review"
+disposal = "recycle"
+comes_back = "no"
+why = "Session recordings ('rollouts'). Sub-agent runs can make these very large."
+if_removed = "You can't resume these sessions."
+verified = false
+sources = ["https://github.com/openai/codex/issues/34061", "https://codex.danielvaughan.com/2026/06/08/codex-cli-session-lifecycle-archive-resume-fork-rollout-persistence-management/"]
+
+[[rule]]
+id = "codex.old-releases"
+title = "Superseded Codex releases"
+paths = ["~/.codex/packages/standalone/releases/*"]
+detector = "codex.superseded_releases"
+tier = "safe"
+disposal = "delete"
+comes_back = "on-demand"
+why = "Older Codex builds kept after updates."
+if_removed = "Nothing changes; the version in use is kept."
+verified = false
+sources = ["https://mole.fit/blog/how-to-clean-up-ai-coding-tools-mac"]

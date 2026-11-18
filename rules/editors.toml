@@ -1,0 +1,61 @@
+[tool]
+id = "editors"
+name = "VS Code & Cursor"
+category = "ai-tools"
+processes = ["Code.exe", "Cursor.exe"]
+
+[[protect]]
+paths = ["%APPDATA%/Code/User/settings.json", "%APPDATA%/Code/User/keybindings.json", "%APPDATA%/Code/User/snippets/**",
+         "%APPDATA%/Cursor/User/settings.json", "%APPDATA%/Cursor/User/globalStorage/state.vscdb"]
+
+[[rule]]
+id = "editors.electron-caches"
+title = "Editor caches and logs"
+paths = ["%APPDATA%/Code/Cache/**", "%APPDATA%/Code/CachedData/**", "%APPDATA%/Code/Code Cache/**", "%APPDATA%/Code/GPUCache/**", "%APPDATA%/Code/CachedExtensionVSIXs/**", "%APPDATA%/Code/logs/**",
+         "%APPDATA%/Cursor/Cache/**", "%APPDATA%/Cursor/CachedData/**", "%APPDATA%/Cursor/Code Cache/**", "%APPDATA%/Cursor/GPUCache/**", "%APPDATA%/Cursor/CachedExtensions/**", "%APPDATA%/Cursor/logs/**"]
+tier = "safe"
+disposal = "delete"
+requires_closed = true
+comes_back = "automatically"
+why = "Compiled-code caches, downloaded extension packages and logs."
+if_removed = "The next launch may be slower while caches rebuild."
+verified = false
+sources = ["https://usekudu.com/cleaners/vscode", "https://usekudu.com/cleaners/cursor"]
+
+[[rule]]
+id = "editors.cpptools-ipch"
+title = "C/C++ IntelliSense cache"
+paths = ["%LOCALAPPDATA%/Microsoft/vscode-cpptools/ipch/**"]
+tier = "safe"
+disposal = "delete"
+requires_closed = true
+comes_back = "automatically"
+why = "Precompiled headers for C/C++ IntelliSense."
+if_removed = "IntelliSense rebuilds them when you open C/C++ projects."
+verified = false
+
+[[rule]]
+id = "cursor.state-backup"
+title = "Cursor state backup"
+paths = ["%APPDATA%/Cursor/User/globalStorage/state.vscdb.backup"]
+tier = "review"
+disposal = "recycle"
+requires_closed = true
+comes_back = "automatically"
+why = "A backup copy of Cursor's state database. It can grow to tens of GB."
+if_removed = "Cursor keeps using the live database (state.vscdb), which Pare never touches."
+verified = false
+sources = ["https://forum.cursor.com/t/large-library-application-support-usage/169582"]
+
+[[rule]]
+id = "cursor.state-db-guide"
+title = "Large Cursor chat database"
+paths = ["%APPDATA%/Cursor/User/globalStorage/state.vscdb"]
+tier = "review"
+disposal = "guide"
+guide = ["In Cursor, run 'Developer: Delete Old Chats…' from the command palette.", "Pick an age cutoff; Cursor compacts the database afterwards."]
+comes_back = "no"
+why = "Cursor stores chat history in this database; it can grow very large."
+if_removed = "Pare never deletes it. Use Cursor's own cleanup."
+verified = false
+sources = ["https://forum.cursor.com/t/cursor-state-vscdb-suddenly-grew-to-77-5-gb-and-globalstorage-reached-100-gb-on-windows/169204"]

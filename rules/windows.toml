@@ -1,0 +1,65 @@
+[tool]
+id = "windows"
+name = "Windows"
+category = "system"
+
+[[rule]]
+id = "windows.user-temp"
+title = "Temporary files older than 1 day"
+paths = ["%TEMP%/**"]
+min_age_days = 1
+tier = "safe"
+disposal = "delete"
+comes_back = "automatically"
+why = "Files apps created for short-term use and didn't clean up."
+if_removed = "Nothing you'd notice; files in use are skipped."
+verified = false
+
+[[rule]]
+id = "windows.crash-dumps"
+title = "App crash dumps"
+paths = ["%LOCALAPPDATA%/CrashDumps/**"]
+tier = "safe"
+disposal = "recycle"
+comes_back = "no"
+why = "Memory dumps written when apps crashed."
+if_removed = "You lose data for diagnosing old crashes."
+verified = false
+
+[[rule]]
+id = "windows.thumbnail-cache"
+title = "Thumbnail cache"
+paths = ["%LOCALAPPDATA%/Microsoft/Windows/Explorer/thumbcache_*.db"]
+tier = "safe"
+disposal = "delete"
+comes_back = "automatically"
+why = "Preview images File Explorer stores for folders you've browsed."
+if_removed = "Thumbnails regenerate as you browse. Files Explorer holds open are skipped."
+verified = false
+
+[[rule]]
+id = "windows.wer"
+title = "Windows error reports"
+paths = ["%PROGRAMDATA%/Microsoft/Windows/WER/ReportArchive/**", "%PROGRAMDATA%/Microsoft/Windows/WER/ReportQueue/**"]
+admin = true
+tier = "safe"
+disposal = "recycle"
+comes_back = "no"
+why = "Problem reports Windows collected after crashes."
+if_removed = "Old reports in Reliability Monitor are gone."
+verified = false
+
+[[rule]]
+id = "docker.vhdx-guide"
+title = "Docker Desktop disk image"
+paths = ["%LOCALAPPDATA%/Docker/wsl/disk/docker_data.vhdx", "%LOCALAPPDATA%/Docker/wsl/main/ext4.vhdx", "%LOCALAPPDATA%/Docker/wsl/data/ext4.vhdx"]
+tier = "review"
+disposal = "guide"
+guide = ["Run 'docker system df' to see reclaimable space, then 'docker system prune' (add -a to remove unused images).",
+         "Quit Docker Desktop and run 'wsl --shutdown'.",
+         "Compact the disk: Optimize-VHD -Path <file> -Mode Full (Hyper-V), or diskpart: select vdisk file=<file>, attach vdisk readonly, compact vdisk, detach vdisk."]
+comes_back = "no"
+why = "Docker's virtual disk grows as you pull images but never shrinks on its own."
+if_removed = "Pare never deletes it; these steps shrink it safely."
+verified = false
+sources = ["https://woshub.com/shrink-wsl2-and-docker-desktop-vhdx-files-in-windows/"]
