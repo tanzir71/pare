@@ -33,7 +33,7 @@ Machine A: Windows 11 Home 26200, C: 1.85 TB used, D: 927 GB used, not elevated.
 | 200k-file fixture, walker | **0.55 s** | progress ≥ 4/s | release, warm; worst progress sample 6.5 µs |
 | User profile, walker, 4.4M files | **67 s** enumerate, 204 s total | — | release; before the M5 fixes below |
 | 50 git repos | **0.38 s** | < 3 s | release, warm |
-| NSIS installer | **1.71 MiB** | < 15 MB | v0.1.0 build |
+| NSIS installer | **3.05 MiB** (CI) / 1.71 MiB (local) | < 15 MB | v0.1.0 draft release |
 | Window visible after launch | **60–180 ms** | < 1 s | release build |
 | Fast mode: MFT index, 1M+ files | not yet measured | < 15 s | needs an administrator terminal |
 | Fast mode: USN update after 1,000 changes | not yet measured | < 2 s | needs an administrator terminal |

@@ -4,9 +4,9 @@ import { Bell, Download, type LucideIcon } from "lucide-react";
 
 export const RELEASED = false;
 
-/** Installer size of the published release (measured: v0.1.0 local build 1.71 MiB). Shown only
+/** Installer size of the published release (measured: v0.1.0 release build from CI, 3,196,614 bytes). Shown only
  * once RELEASED is true, because landing numbers must come from the shipped app. */
-export const DOWNLOAD_SIZE = "2 MB";
+export const DOWNLOAD_SIZE = "3 MB";
 export const downloadSizeText = RELEASED ? `A ${DOWNLOAD_SIZE} download.` : "A small download.";
 
 export const REPO_URL = "https://github.com/tanzir71/pare";
