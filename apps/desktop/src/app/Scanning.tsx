@@ -24,7 +24,8 @@ export function Scanning() {
   const phaseNo = !p || p.phase === "enumerating" || p.phase === "starting" ? 1 : 2;
   const pcScope = scan.scope.includes("pc");
   const title = pcScope ? "Scanning This PC" : `Scanning ${scan.scope.length === 1 ? "1 folder" : `${scan.scope.length} folders`}`;
-  const fast = false; // M6: NTFS fast mode
+  // Fast mode: whole drives, elevated (the scanner reads the NTFS file table directly).
+  const fast = pcScope && (useApp.getState().info?.elevated ?? false);
   const current = p?.current ? p.current.slice(0, 3) : "";
 
   return (

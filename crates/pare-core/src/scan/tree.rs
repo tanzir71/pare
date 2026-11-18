@@ -114,6 +114,8 @@ pub struct RootInfo {
 pub struct Tree {
     pub nodes: Vec<Node>,
     pub roots: Vec<RootInfo>,
+    /// Totals by file type over every file seen (kept or folded).
+    pub kinds: super::kinds::KindTotals,
 }
 
 impl Tree {

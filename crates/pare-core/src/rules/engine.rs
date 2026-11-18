@@ -29,6 +29,7 @@ pub struct RuleCtx<'a> {
     pub elevated: bool,
     /// Only matches inside these roots count (None = everywhere).
     pub within: Option<&'a [PathBuf]>,
+    pub check_in_use: bool,
 }
 
 /// Run every rule whose category is `category`.
@@ -149,7 +150,7 @@ pub fn run_rule(
                 return Vec::new();
             }
             let prune = rule.command.iter().any(|a| a == "prune");
-            let mut cand = base.candidate(&rule.title, c);
+            let mut cand = base.candidate_with(&rule.title, c, !prune);
             cand.extra_paths = matches.iter().map(|m| m.path().to_path_buf()).collect();
             if prune {
                 // The tool decides what's unused: don't promise space we can't confirm.
@@ -312,6 +313,8 @@ impl Walker<'_> {
 
 /// Fields shared by every candidate a rule produces.
 pub struct Base<'a> {
+    /// Split units other apps hold open out of findings (the Restart Manager check).
+    pub check_in_use: bool,
     pub tool: &'a LoadedTool,
     pub rule: &'a RuleDef,
     pub category: CategoryId,
@@ -327,6 +330,7 @@ impl<'a> Base<'a> {
         patterns: &[PathPattern],
     ) -> Base<'a> {
         Base {
+            check_in_use: ctx.check_in_use,
             tool,
             rule,
             category: category_for(&tool.tool, rule),
@@ -354,8 +358,22 @@ impl<'a> Base<'a> {
 
     /// A candidate from collected files.
     pub fn candidate(&self, title: &str, c: Collected) -> Candidate {
+        self.candidate_with(title, c, true)
+    }
+
+    /// `count_links = false` sums sizes without checking hard links (for sizes shown only as
+    /// information, e.g. a store a tool prunes itself).
+    pub fn candidate_with(&self, title: &str, c: Collected, count_links: bool) -> Candidate {
         let mut files = c.files;
-        let (bytes, logical, items) = account(&mut files);
+        let (bytes, logical, items) = if count_links {
+            account(&mut files)
+        } else {
+            (
+                files.iter().map(|f| f.allocated).sum(),
+                files.iter().map(|f| f.logical).sum(),
+                files.len() as u64,
+            )
+        };
         files.sort_by_key(|f| std::cmp::Reverse(f.modified));
         let mut cand = Candidate::new(&self.rule.id, self.category, title);
         cand.source = self.tool.tool.name.clone();
@@ -399,11 +417,26 @@ impl<'a> Base<'a> {
         cand
     }
 
-    /// The rule's candidate plus, when recently used files were skipped, a Protected companion
-    /// so the user sees what was kept and why.
+    /// The rule's candidate plus Protected companions for what was left out: files changed in
+    /// the last 24 hours, and units another app holds open (so one open temp file doesn't block
+    /// the rest of %TEMP%).
     pub fn with_recent_companion(&self, title: &str, mut c: Collected) -> Vec<Candidate> {
         let recent = std::mem::take(&mut c.recent);
         let mut out = Vec::new();
+        if self.check_in_use && c.units.len() > 1 {
+            let (held, names) = split_held(&mut c);
+            if !held.files.is_empty() || !held.units.is_empty() {
+                let mut k = self.candidate(&format!("{title}: open in another app"), held);
+                k.tier = Tier::Protected {
+                    reason: ProtectReason::InUse,
+                    detail: Some(format!("Open in {names}")),
+                };
+                k.note = Some("In use".into());
+                k.why = "Another app has these files open, so Pare leaves them alone.".into();
+                k.if_removed = "Nothing: Pare doesn't remove files that are in use.".into();
+                out.push(k);
+            }
+        }
         if !c.files.is_empty() || !c.units.is_empty() {
             out.push(self.candidate(title, c));
         }
@@ -444,6 +477,51 @@ impl<'a> Base<'a> {
         }
         out
     }
+}
+
+/// Move units whose files another process holds open out of `c`. Returns them and the
+/// holders' names.
+fn split_held(c: &mut Collected) -> (Collected, String) {
+    // Up to 20 newest files per unit go to the Restart Manager, batched.
+    let mut per_unit: Vec<Vec<PathBuf>> = vec![Vec::new(); c.units.len()];
+    let mut order: Vec<&FileAcc> = c.files.iter().collect();
+    order.sort_by_key(|f| std::cmp::Reverse(f.modified));
+    for f in order {
+        if let Some(i) = c
+            .units
+            .iter()
+            .position(|u| platform::path_starts_with(&f.path, u))
+        {
+            if per_unit[i].len() < 20 {
+                per_unit[i].push(f.path.clone());
+            }
+        }
+    }
+    let holders = crate::safety::holders_batch(&per_unit);
+    let mut held = Collected::default();
+    let mut names: Vec<String> = Vec::new();
+    let mut keep_units = Vec::new();
+    for (u, h) in std::mem::take(&mut c.units).into_iter().zip(holders) {
+        if h.is_empty() {
+            keep_units.push(u);
+        } else {
+            names.extend(h.into_iter().map(|x| x.name));
+            held.units.push(u);
+        }
+    }
+    c.units = keep_units;
+    let (held_files, files): (Vec<FileAcc>, Vec<FileAcc>) =
+        std::mem::take(&mut c.files).into_iter().partition(|f| {
+            held.units
+                .iter()
+                .any(|u| platform::path_starts_with(&f.path, u))
+        });
+    c.files = files;
+    held.newest = held_files.iter().map(|f| f.modified).max().unwrap_or(0);
+    held.files = held_files;
+    names.sort();
+    names.dedup();
+    (held, names.join(", "))
 }
 
 /// Is any process from `names` running (case-insensitive)?

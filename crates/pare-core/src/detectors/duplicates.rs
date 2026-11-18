@@ -21,7 +21,12 @@ const EDGE: u64 = 64 * 1024;
 
 /// Folders whose copy is preferred as "the one to keep", best first.
 fn preference(path: &Path, ctx: &DetectCtx) -> usize {
-    let order = [&ctx.env.documents, &ctx.env.pictures, &ctx.env.desktop, &ctx.env.downloads];
+    let order = [
+        &ctx.env.documents,
+        &ctx.env.pictures,
+        &ctx.env.desktop,
+        &ctx.env.downloads,
+    ];
     order
         .iter()
         .position(|p| platform::path_starts_with(path, p))
@@ -70,11 +75,25 @@ fn full_hash(path: &Path) -> Option<[u8; 32]> {
 }
 
 /// Folders whose contents are app data or build output, never "your" duplicates.
-const SKIP: &[&str] = &[".git", "node_modules", "target", ".venv", "venv", "__pycache__", "AppData", "$Recycle.Bin", ".cache"];
+const SKIP: &[&str] = &[
+    ".git",
+    "node_modules",
+    "target",
+    ".venv",
+    "venv",
+    "__pycache__",
+    "AppData",
+    "$Recycle.Bin",
+    ".cache",
+];
 
 pub fn duplicates(ctx: &DetectCtx, threads: usize, claimed: &HashSet<NodeId>) -> Vec<Candidate> {
     let tree = ctx.tree;
-    let min = ctx.thresholds.duplicate_min_mb.saturating_mul(1_000_000).max(1);
+    let min = ctx
+        .thresholds
+        .duplicate_min_mb
+        .saturating_mul(1_000_000)
+        .max(1);
     // Collect candidate files, skipping hidden/system/app folders.
     let mut files: Vec<Copy> = Vec::new();
     let mut stack: Vec<NodeId> = tree.roots.iter().map(|r| r.node).collect();
@@ -93,7 +112,12 @@ pub fn duplicates(ctx: &DetectCtx, threads: usize, claimed: &HashSet<NodeId>) ->
         }
         // Claimed by another suggestion: neither suggested nor kept here (so the kept copy can
         // never be one that another card removes).
-        if n.leaf != Leaf::No || n.logical < min || n.is_cloud_placeholder() || n.is_hidden_or_system() || claimed.contains(&id) {
+        if n.leaf != Leaf::No
+            || n.logical < min
+            || n.is_cloud_placeholder()
+            || n.is_hidden_or_system()
+            || claimed.contains(&id)
+        {
             continue;
         }
         files.push(Copy {
@@ -119,7 +143,9 @@ pub fn duplicates(ctx: &DetectCtx, threads: usize, claimed: &HashSet<NodeId>) ->
     }
     let buckets: Vec<Vec<Copy>> = by_size.into_values().filter(|v| v.len() > 1).collect();
 
-    let pool = rayon::ThreadPoolBuilder::new().num_threads(threads.max(1)).build();
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(threads.max(1))
+        .build();
     let run = |work: &(dyn Fn() -> Vec<Vec<Copy>> + Sync)| match &pool {
         Ok(p) => p.install(work),
         Err(_) => work(),
@@ -159,9 +185,21 @@ pub fn duplicates(ctx: &DetectCtx, threads: usize, claimed: &HashSet<NodeId>) ->
         if g.is_empty() {
             continue;
         }
-        let name = keep.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        let mut c = Candidate::new("duplicates.exact", CategoryId::Duplicates, format!("{name} ({} copies)", g.len() + 1));
-        c.source = keep.path.parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+        let name = keep
+            .path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let mut c = Candidate::new(
+            "duplicates.exact",
+            CategoryId::Duplicates,
+            format!("{name} ({} copies)", g.len() + 1),
+        );
+        c.source = keep
+            .path
+            .parent()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default();
         c.source_path = keep.path.parent().map(|p| p.to_path_buf());
         c.nodes = g.iter().map(|x| x.node).collect();
         c.tier = Tier::Review;
@@ -173,11 +211,15 @@ pub fn duplicates(ctx: &DetectCtx, threads: usize, claimed: &HashSet<NodeId>) ->
         );
         c.if_removed = format!(
             "The copy in {} stays. The others go to the Recycle Bin.",
-            keep.path.parent().map(|p| p.display().to_string()).unwrap_or_default()
+            keep.path
+                .parent()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default()
         );
         c.note = Some(format!("{} other copies", g.len()));
         c.badge = Some("Duplicate".into());
-        c.facts.push(("Kept copy".into(), keep.path.display().to_string()));
+        c.facts
+            .push(("Kept copy".into(), keep.path.display().to_string()));
         let mut accs: Vec<FileAcc> = g
             .iter()
             .map(|x| FileAcc {
@@ -211,7 +253,9 @@ pub fn duplicates(ctx: &DetectCtx, threads: usize, claimed: &HashSet<NodeId>) ->
 pub fn screenshots(ctx: &DetectCtx) -> Vec<Candidate> {
     let tree = ctx.tree;
     let dir = ctx.env.pictures.join("Screenshots");
-    let Some(id) = tree.find(&dir) else { return Vec::new() };
+    let Some(id) = tree.find(&dir) else {
+        return Vec::new();
+    };
     let min_age = ctx.thresholds.screenshot_days as i64 * crate::types::MS_PER_DAY;
     let mut out = Vec::new();
     for c in tree.descendants(id).skip(1) {
@@ -223,15 +267,23 @@ pub fn screenshots(ctx: &DetectCtx) -> Vec<Candidate> {
         if !["png", "jpg", "jpeg", "gif", "bmp", "webp", "heic"].contains(&ext.as_str()) {
             continue;
         }
-        let mut cand = Candidate::new("screenshots.old", CategoryId::Screenshots, n.name.to_string_lossy().into_owned());
+        let mut cand = Candidate::new(
+            "screenshots.old",
+            CategoryId::Screenshots,
+            n.name.to_string_lossy().into_owned(),
+        );
         cand.nodes = vec![c];
         cand.source = "Screenshots".into();
         cand.source_path = Some(dir.clone());
         cand.tier = Tier::Review;
         cand.disposal = Disposal::Recycle;
         cand.comes_back = ComesBack::No;
-        cand.why = format!("A screenshot taken {}.", crate::format::age_phrase(ctx.now, n.created.max(n.modified).min(n.modified)));
-        cand.if_removed = "It goes to the Recycle Bin, so you can restore it until the bin is emptied.".into();
+        cand.why = format!(
+            "A screenshot taken {}.",
+            crate::format::age_phrase(ctx.now, n.created.max(n.modified).min(n.modified))
+        );
+        cand.if_removed =
+            "It goes to the Recycle Bin, so you can restore it until the bin is emptied.".into();
         cand.note = Some(crate::format::age_phrase(ctx.now, n.modified));
         out.push(cand);
     }
@@ -241,7 +293,9 @@ pub fn screenshots(ctx: &DetectCtx) -> Vec<Candidate> {
 /// Hashing threads for a path: 1 on spinning disks, a few on SSDs.
 pub fn hash_threads(root: &Path) -> usize {
     use sysinfo::{DiskKind, Disks};
-    let Ok(disks) = Disks::new_with_refreshed_list() else { return 2 };
+    let Ok(disks) = Disks::new_with_refreshed_list() else {
+        return 2;
+    };
     let best = disks
         .iter()
         .filter(|d| platform::path_starts_with(root, d.mount_point()))

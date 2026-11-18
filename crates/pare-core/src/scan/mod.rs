@@ -1,6 +1,7 @@
 //! Enumeration: the walker builds a [`tree::Tree`]; [`measure`] turns detector candidates into
 //! findings with honest sizes.
 
+pub mod kinds;
 pub mod measure;
 pub mod progress;
 pub mod tree;

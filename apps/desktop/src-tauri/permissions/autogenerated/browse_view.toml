@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-browse-view"
+description = "Enables the browse_view command without any pre-configured scope."
+commands.allow = ["browse_view"]
+
+[[permission]]
+identifier = "deny-browse-view"
+description = "Denies the browse_view command without any pre-configured scope."
+commands.deny = ["browse_view"]

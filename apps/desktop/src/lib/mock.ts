@@ -13,6 +13,8 @@ import type {
   HistoryDetail,
   Project,
   ProjectsView,
+  BrowseChild,
+  BrowseView,
   HistoryOp,
   ScanSummary,
   Settings,
@@ -203,6 +205,25 @@ function mockProjects(): ProjectsView {
   return { checked: now - 120_000, roots: ["D:\\code", "C:\\Users\\ana\\Desktop"], projects: rows.map((r) => r[0]), findings: rows.flatMap((r) => (r[1] ? [r[1]] : [])) };
 }
 
+function mockBrowse(path: string): BrowseView {
+  const dir = (name: string, gb: number, files: number, leaf: BrowseChild["leaf"] = "none"): BrowseChild => ({ name, path: `${path.replace(/\\$/, "")}\\${name}`, bytes: gb * GB, files, isDir: true, kind: null, leaf, modified: now - 3 * DAY });
+  const file = (name: string, gb: number, kind: BrowseChild["kind"]): BrowseChild => ({ name, path: `${path.replace(/\\$/, "")}\\${name}`, bytes: gb * GB, files: 1, isDir: false, kind, leaf: "none", modified: now - 90 * DAY });
+  const children = path.length <= 3
+    ? [dir("Users", 210, 2_400_000), dir("Windows", 38, 410_000, "excluded"), dir("Program Files", 61, 380_000, "excluded"), dir("ProgramData", 24, 120_000, "excluded"), dir("code", 44, 900_000), file("hiberfil.sys", 13, "other"), file("ubuntu-24.04.iso", 6, "archives")]
+    : [dir("Documents", 64, 120_000), dir("Downloads", 38, 4_100), dir("AppData", 71, 1_900_000), dir("Videos", 22, 300), file("family-trip.mov", 4.2, "videos"), file("model.safetensors", 11.9, "ai-models")];
+  const bytes = children.reduce((a, c) => a + c.bytes, 0) + 3 * GB;
+  return {
+    path, name: path, bytes, files: children.reduce((a, c) => a + c.files, 0) + 40_000, children, foldedBytes: 3 * GB, foldedFiles: 40_000,
+    roots: [{ ...dir("C:\\", 412, 4_300_000), path: "C:\\", name: "C:\\" }, { ...dir("D:\\", 360, 1_200_000), path: "D:\\", name: "D:\\" }],
+    wholeDrive: true, fastDrives: [], scanned: now - 120_000,
+    kinds: [
+      { kind: "videos", label: "Videos", bytes: 61 * GB, files: 1200 }, { kind: "ai-models", label: "AI models", bytes: 44 * GB, files: 31 },
+      { kind: "images", label: "Images", bytes: 22 * GB, files: 41_000 }, { kind: "archives", label: "Archives", bytes: 18 * GB, files: 900 },
+      { kind: "code", label: "Code", bytes: 6 * GB, files: 820_000 }, { kind: "other", label: "Other", bytes: 240 * GB, files: 3_100_000 },
+    ],
+  };
+}
+
 let summary: ScanSummary | null = null;
 const history: HistoryDetail[] = [];
 let scanSeq = 0;
@@ -305,7 +326,7 @@ export const mockBackend: Backend = {
     const r = (v: unknown) => v as T;
     switch (cmd) {
       case "app_info":
-        return r({ version: "0.1.0", coreVersion: "0.1.0", platform: "browser preview", logDir: `${H}\\AppData\\Local\\Pare\\logs`, settingsPath: `${H}\\AppData\\Roaming\\Pare\\settings.json` });
+        return r({ version: "0.1.0", coreVersion: "0.1.0", platform: "browser preview", logDir: `${H}\\AppData\\Local\\Pare\\logs`, settingsPath: `${H}\\AppData\\Roaming\\Pare\\settings.json`, elevated: false });
       case "list_drives":
         return r(drives);
       case "known_folders":
@@ -355,6 +376,14 @@ export const mockBackend: Backend = {
       case "projects_list":
       case "projects_scan":
         return r(mockProjects());
+      case "browse_view":
+        return r(mockBrowse((args.path as string | null) ?? "C:\\"));
+      case "browse_kind_files":
+        return r(mockBrowse("C:\\").children.filter((c) => !c.isDir));
+      case "browse_item":
+        return r(findings[0]);
+      case "relaunch_elevated":
+        throw new Error("Not available in the browser preview.");
       default:
         throw new Error(`mock: unknown command ${cmd}`);
     }

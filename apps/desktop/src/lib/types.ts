@@ -324,6 +324,7 @@ export interface AppInfo {
   platform: string;
   logDir: string;
   settingsPath: string;
+  elevated: boolean;
 }
 
 export type ProjectStatus =
@@ -364,4 +365,41 @@ export interface ProjectsView {
   roots: string[];
   projects: Project[];
   findings: Finding[];
+}
+
+export type FileKind =
+  | "images"
+  | "videos"
+  | "audio"
+  | "documents"
+  | "archives"
+  | "installers"
+  | "code"
+  | "ai-models"
+  | "other";
+
+export interface BrowseChild {
+  name: string;
+  path: string;
+  bytes: number;
+  files: number;
+  isDir: boolean;
+  kind: FileKind | null;
+  leaf: "none" | "link" | "excluded" | "error";
+  modified: Timestamp;
+}
+
+export interface BrowseView {
+  path: string;
+  name: string;
+  bytes: number;
+  files: number;
+  children: BrowseChild[];
+  foldedBytes: number;
+  foldedFiles: number;
+  roots: BrowseChild[];
+  wholeDrive: boolean;
+  fastDrives: string[];
+  kinds: { kind: FileKind; label: string; bytes: number; files: number }[];
+  scanned: Timestamp;
 }

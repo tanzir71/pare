@@ -13,6 +13,9 @@ import type {
   HistoryOp,
   KnownFolders,
   ProjectsView,
+  BrowseChild,
+  BrowseView,
+  FileKind,
   ProgressPayload,
   PurgeReport,
   RestoreReport,
@@ -78,6 +81,10 @@ export const api = {
   openInExplorer: (path: string) => call<void>("open_in_explorer", { path }),
   projectsList: () => call<ProjectsView>("projects_list"),
   projectsScan: () => call<ProjectsView>("projects_scan"),
+  browseView: (path?: string) => call<BrowseView>("browse_view", { path: path ?? null }),
+  browseKindFiles: (kind: FileKind) => call<BrowseChild[]>("browse_kind_files", { kind }),
+  browseItem: (path: string) => call<Finding>("browse_item", { path }),
+  relaunchElevated: () => call<void>("relaunch_elevated"),
 };
 
 export interface Events {

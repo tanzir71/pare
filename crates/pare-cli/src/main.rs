@@ -66,6 +66,14 @@ enum Cmd {
     /// Run as an MCP server on stdio, so coding agents can ask what's using disk space and
     /// propose (never execute) cleanups.
     Mcp,
+    /// Fast-mode index of an NTFS drive (needs an administrator terminal).
+    Index {
+        /// Drive root, e.g. C:\
+        drive: PathBuf,
+        /// Also save it to %LOCALAPPDATA%\Pare\index and time a USN catch-up.
+        #[arg(long)]
+        save: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -127,6 +135,8 @@ pub(crate) fn run_scan(env: &Env, paths: &[PathBuf], in_use: bool) -> ScanOutput
             .chain(settings.project_roots.iter().cloned())
             .collect(),
         duplicates: true,
+        fast_mode: true,
+        index_cache: None,
     };
     scan(
         &req,
@@ -300,5 +310,57 @@ fn main() {
             }
         }
         Cmd::Mcp => mcp::serve(&env),
+        Cmd::Index { drive, save } => index_cmd(&env, &drive, save),
     }
+}
+
+#[cfg(windows)]
+fn index_cmd(env: &Env, drive: &std::path::Path, save: bool) {
+    use pare_core::index::{db_path, mft, store};
+    if !pare_core::platform::is_elevated() {
+        eprintln!("Fast mode reads the NTFS file table and needs an administrator terminal.");
+        std::process::exit(2);
+    }
+    let t = std::time::Instant::now();
+    let mut idx = match mft::build(drive) {
+        Ok(i) => i,
+        Err(e) => {
+            eprintln!("Couldn't read the MFT: {e}");
+            std::process::exit(1);
+        }
+    };
+    let files = idx.entries.iter().filter(|e| !e.is_dir).count();
+    println!(
+        "{}: {} entries, {} files, read in {:.2} s",
+        drive.display(),
+        format_count(idx.entries.len() as u64),
+        format_count(files as u64),
+        t.elapsed().as_secs_f64()
+    );
+    if save {
+        let p = db_path(env, idx.serial);
+        let t = std::time::Instant::now();
+        match store::save(&idx, &p) {
+            Ok(()) => println!(
+                "saved to {} in {:.2} s",
+                p.display(),
+                t.elapsed().as_secs_f64()
+            ),
+            Err(e) => eprintln!("couldn't save: {e}"),
+        }
+        let t = std::time::Instant::now();
+        match mft::update(&mut idx) {
+            Ok(n) => println!(
+                "USN catch-up: {n} changes in {:.3} s",
+                t.elapsed().as_secs_f64()
+            ),
+            Err(e) => eprintln!("journal: {e}"),
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn index_cmd(_env: &Env, _drive: &std::path::Path, _save: bool) {
+    eprintln!("Fast mode is Windows-only.");
+    std::process::exit(2);
 }

@@ -33,6 +33,10 @@
     "allow-exclusion-add",
     "allow-open-in-explorer",
     "allow-projects-list",
-    "allow-projects-scan"
+    "allow-projects-scan",
+    "allow-browse-view",
+    "allow-browse-kind-files",
+    "allow-browse-item",
+    "allow-relaunch-elevated"
   ]
 }
