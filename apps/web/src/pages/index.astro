@@ -1,0 +1,397 @@
+---
+import { Button, Chip, FeatureCard, type CategoryHue } from "@pare/ui";
+import {
+  Calendar,
+  ChevronDown,
+  File,
+  GitBranch,
+  History,
+  LayoutGrid,
+  Lock,
+  RotateCcw,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
+import Base from "../layouts/Base.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import SectionHeader from "../components/SectionHeader.astro";
+import { HeroMock } from "../components/HeroMock";
+import { SafetyExample } from "../components/SafetyExample";
+import { download, links } from "../site";
+
+const trust: Array<{ icon: LucideIcon; text: string }> = [
+  { icon: ShieldCheck, text: "Open-source rules you can audit" },
+  { icon: RotateCcw, text: "Your files go to the Recycle Bin first" },
+  { icon: Lock, text: "Local-only · no account, no telemetry" },
+  { icon: History, text: "Every action logged on your PC" },
+];
+
+const features: Array<{ icon: LucideIcon; hue: CategoryHue; title: string; body: string }> = [
+  {
+    icon: Sparkles,
+    hue: "violet",
+    title: "Knows your AI tools",
+    body: "Claude Code, Codex, Cursor and Ollama leave gigabytes of sessions, logs and caches behind. Pare knows which are safe to clear.",
+  },
+  {
+    icon: GitBranch,
+    hue: "orange",
+    title: "Git-aware project cleanup",
+    body: "Clears node_modules, target and .venv only in repos that are committed, pushed and idle — never in work in progress.",
+  },
+  {
+    icon: ShieldCheck,
+    hue: "green",
+    title: "Safety you can read",
+    body: "Every suggestion says why it's there, what you lose, and whether it comes back on its own.",
+  },
+  {
+    icon: LayoutGrid,
+    hue: "blue",
+    title: "Bulk actions, done right",
+    body: "Select by safety, age or size and free gigabytes in one click. Your own files stay restorable.",
+  },
+  {
+    icon: Calendar,
+    hue: "teal",
+    title: "Dates that help you decide",
+    body: "Created, modified, last opened and last commit, side by side — so old really means old.",
+  },
+  {
+    icon: Zap,
+    hue: "amber",
+    title: "Whole drives in seconds",
+    body: "Reads the NTFS file table directly, then follows the change journal so rescans are instant.",
+  },
+];
+
+const steps: Array<{ icon: LucideIcon; title: string; body: string }> = [
+  {
+    icon: Search,
+    title: "Scan",
+    // Figma: "…so even a 2 TB drive takes seconds." Speed numbers wait for the shipped app (DESIGN §6.2).
+    body: "Pick a whole drive, or just Desktop and Downloads. Fast mode reads the file table directly instead of opening every folder.",
+  },
+  {
+    icon: LayoutGrid,
+    title: "Review",
+    body: "Suggestions arrive as cards, each with a safety label, dates, git status and exactly what you'd lose.",
+  },
+  {
+    icon: Sparkles,
+    title: "Free up",
+    body: "Clear a category or hand-pick files. Caches that rebuild go right away; your own files go to the Recycle Bin.",
+  },
+];
+
+const tools = [
+  "Claude Code",
+  "Claude desktop",
+  "Codex",
+  "Cursor",
+  "VS Code",
+  "Ollama",
+  "LM Studio",
+  "Hugging Face",
+  "npm",
+  "pnpm",
+  "Yarn",
+  "pip",
+  "uv",
+  "Cargo",
+  "Gradle",
+  "Maven",
+  "NuGet",
+  "Go",
+  "Docker Desktop",
+  "WSL",
+  "Unity",
+  "Chrome",
+  "Edge",
+  "Windows Update",
+];
+
+const guarantees = [
+  "Your own files go to the Recycle Bin first. Pare only empties what it moved, after 30 days.",
+  "Anything used in the last 24 hours, or open in an app, is never suggested.",
+  "Projects with uncommitted or unpushed work are skipped automatically.",
+  "No account, no telemetry, no cloud. Every action is logged on your PC.",
+];
+
+const faq = [
+  {
+    q: "Is Pare free?",
+    a: "Yes. Pare is free and open source under the MIT license. No ads, no upsells, no “PRO” cleaning gates.",
+  },
+  {
+    q: "Does it need admin rights?",
+    a: "No. Admin is only used for the optional fast mode that reads the NTFS file table. Without it, Pare scans folders the normal way.",
+  },
+  {
+    q: "Will it delete my code?",
+    a: "No. Pare only suggests build folders like node_modules or target, and only in repos that are committed, pushed and idle.",
+  },
+  {
+    q: "How is it different from Storage Sense or CCleaner?",
+    a: "Pare explains every suggestion, understands dev and AI tools, checks git before touching a project, and has no registry “optimizers”.",
+  },
+  {
+    q: "Can I undo a cleanup?",
+    a: "Your own files go to the Recycle Bin and can be restored from History. Caches are removed directly because apps rebuild them.",
+  },
+  {
+    q: "Does it work offline?",
+    a: "Completely. Pare never uploads file names, paths or contents anywhere.",
+  },
+];
+---
+
+<Base>
+  <Header />
+  <main id="main" tabindex="-1" class="outline-none">
+    <!-- Hero -->
+    <section aria-labelledby="hero-title" class="bg-bg-surface pt-8 md:pt-12 xl:pt-[72px]">
+      <div class="page flex flex-col items-center text-center">
+        <p
+          class="m-0 inline-flex items-center gap-2 rounded-full bg-accent-subtle py-1.5 pl-3 pr-3.5 text-label-m text-accent-on-subtle"
+        >
+          <ShieldCheck aria-hidden="true" size={16} strokeWidth={2} className="shrink-0" />
+          Open source · Runs locally · No telemetry
+        </p>
+        <h1
+          id="hero-title"
+          class="mb-0 mt-6 text-balance font-semibold text-text-primary max-md:text-[40px]/[44px] max-md:tracking-[-0.03em] md:text-display-l lg:text-display-xl"
+        >
+          <span class="block">Make room on your PC.</span>
+          <span class="block">Keep what matters.</span>
+        </h1>
+        <p class="mb-0 mt-6 max-w-[640px] text-pretty text-body-l text-text-secondary">
+          Pare finds caches, idle build folders, AI-tool logs and forgotten downloads — and shows you what's safe to
+          remove before anything is deleted.
+        </p>
+        <div class="mt-6 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+          <Button href={download.href} size="l" icon={download.icon} className="max-sm:w-full">
+            {download.label}
+          </Button>
+          <Button href={links.repo} size="l" variant="secondary" icon={Star} className="max-sm:w-full">
+            Star on GitHub
+          </Button>
+        </div>
+        <p class="mb-0 mt-6 text-caption text-text-secondary">
+          Free and open source (MIT) · Windows 10 &amp; 11 · Nothing leaves your PC
+        </p>
+      </div>
+      <div class="page mt-10 md:mt-16">
+        <div aria-hidden="true" inert class="pointer-events-none select-none">
+          <HeroMock />
+        </div>
+      </div>
+    </section>
+
+    <!-- Proof / trust bar -->
+    <section aria-label="Why you can trust Pare" class="bg-bg-surface pb-14 pt-10">
+      <ul
+        class="page grid grid-cols-1 gap-4 md:grid-cols-[auto_auto] md:justify-center md:gap-x-16 md:gap-y-5 xl:flex xl:items-center xl:gap-0"
+      >
+        {
+          trust.map(({ icon: Icon, text }, i) => (
+            <li class:list={["flex items-center gap-2 xl:px-7 xl:first:pl-0 xl:last:pr-0", i > 0 && "xl:border-l xl:border-border-default"]}>
+              <Icon aria-hidden="true" size={18} strokeWidth={2} className="shrink-0 text-accent-default" />
+              <span class="text-body-m-strong text-text-secondary">{text}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <!-- Features -->
+    <section id="features" aria-labelledby="features-title" class="defer-render [--cis:1720px] md:[--cis:1000px] lg:[--cis:886px] xl:[--cis:658px] bg-bg-app py-16 md:py-24">
+      <div class="page">
+        <SectionHeader
+          id="features-title"
+          overline="Why Pare"
+          title="Built for how you actually use your PC"
+          sub="Generic cleaners guess. Pare understands where space really goes on a modern Windows machine — and proves it's safe."
+        />
+        <div class="mt-12 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {
+            features.map((f) => (
+              <FeatureCard icon={f.icon} hue={f.hue} title={f.title}>
+                {f.body}
+              </FeatureCard>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section id="how-it-works" aria-labelledby="how-title" class="defer-render [--cis:894px] md:[--cis:764px] lg:[--cis:404px] xl:[--cis:384px] bg-bg-surface py-16 md:py-24">
+      <div class="page">
+        <SectionHeader
+          id="how-title"
+          overline="How it works"
+          title="Three steps. No surprises."
+          sub="Pare never deletes anything until you've seen exactly what it is."
+        />
+        <ol class="m-0 mt-12 grid list-none gap-6 p-0 lg:grid-cols-3">
+          {
+            steps.map(({ icon: Icon, title, body }, i) => (
+              <li class="flex flex-col gap-3.5 rounded-xl bg-bg-app p-7">
+                <div class="flex items-center justify-between">
+                  <span
+                    aria-hidden="true"
+                    class="inline-flex size-9 items-center justify-center rounded-full bg-accent-default text-label-m text-text-on-accent"
+                  >
+                    {i + 1}
+                  </span>
+                  <Icon aria-hidden="true" size={24} strokeWidth={2} className="text-text-tertiary" />
+                </div>
+                <h3 class="m-0 text-heading-h3 text-text-primary">
+                  <span class="sr-only">Step {i + 1}: </span>
+                  {title}
+                </h3>
+                <p class="m-0 text-body-m text-text-secondary">{body}</p>
+              </li>
+            ))
+          }
+        </ol>
+      </div>
+    </section>
+
+    <!-- Tools -->
+    <section aria-labelledby="tools-title" class="defer-render [--cis:634px] md:[--cis:476px] lg:[--cis:374px] bg-bg-app py-16 md:py-24">
+      <div class="page">
+        <SectionHeader
+          id="tools-title"
+          overline="Knows your stack"
+          title="The tools that quietly fill your drive"
+          sub="Pare ships with cleanup rules for the AI assistants, package managers and dev tools Windows cleaners ignore."
+        />
+        <ul class="m-0 mx-auto mt-12 flex max-w-[960px] list-none flex-wrap justify-center gap-2.5 p-0">
+          {
+            tools.map((tool) => (
+              <li>
+                <Chip as="span">{tool}</Chip>
+              </li>
+            ))
+          }
+        </ul>
+        <p class="mx-auto mb-0 mt-4 flex max-w-[640px] items-start justify-center gap-2 text-center text-body-s text-text-secondary">
+          <File aria-hidden="true" size={16} strokeWidth={2} className="mt-px shrink-0" />
+          <span>
+            Rules are open-source TOML files — <a
+              href={links.contribute}
+              class="focus-ring rounded-sm text-accent-default underline underline-offset-2 hover:text-accent-hover"
+              >add your own tool in a pull request</a
+            >.
+          </span>
+        </p>
+      </div>
+    </section>
+
+    <!-- Safety -->
+    <section id="safety" aria-labelledby="safety-title" class="defer-render [--cis:919px] md:[--cis:691px] lg:[--cis:663px] xl:[--cis:444px] bg-bg-inverse py-16 md:py-24">
+      <div class="page grid items-center gap-12 xl:grid-cols-[472px_1fr] xl:gap-14">
+        <div>
+          <p class="m-0 text-overline uppercase text-on-inverse-accent">Careful by default</p>
+          <h2
+            id="safety-title"
+            class="mb-0 mt-4 max-w-[472px] text-balance text-heading-h1 text-on-inverse-text md:text-display-l"
+          >
+            Built to never delete the wrong thing
+          </h2>
+          <ul class="m-0 mt-8 flex list-none flex-col gap-4 p-0">
+            {
+              guarantees.map((g) => (
+                <li class="flex gap-3">
+                  <ShieldCheck
+                    aria-hidden="true"
+                    size={20}
+                    strokeWidth={2}
+                    className="mt-1 shrink-0 text-on-inverse-accent"
+                  />
+                  <span class="text-body-l text-on-inverse-text-muted">{g}</span>
+                </li>
+              ))
+            }
+          </ul>
+        </div>
+        <figure class="m-0">
+          <div aria-hidden="true" inert class="pointer-events-none select-none">
+            <SafetyExample />
+          </div>
+          <figcaption class="sr-only">
+            Example of what Pare decided: node_modules in client-portal is kept because it has uncommitted changes.
+            Q3-report-final.pdf and Codex archived sessions are left for you to review. The npm download cache is
+            selected because it is recreated as needed.
+          </figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" aria-labelledby="faq-title" class="defer-render [--cis:528px] md:[--cis:954px] lg:[--cis:602px] xl:[--cis:542px] bg-bg-surface py-16 md:py-24">
+      <div class="page">
+        <SectionHeader id="faq-title" overline="FAQ" title="Questions, answered" />
+        <!-- 768 and up: cards (1 column at 768, 2 from 1024) -->
+        <div class="mt-12 hidden gap-6 md:grid lg:grid-cols-2">
+          {
+            faq.map(({ q, a }) => (
+              <div class="flex flex-col gap-2 rounded-xl border border-border-default bg-bg-surface px-7 py-6">
+                <h3 class="m-0 text-title-m text-text-primary">{q}</h3>
+                <p class="m-0 text-body-m text-text-secondary">{a}</p>
+              </div>
+            ))
+          }
+        </div>
+        <!-- Under 768: disclosure list -->
+        <div class="mt-10 flex flex-col gap-3 md:hidden">
+          {
+            faq.map(({ q, a }) => (
+              <details class="group rounded-xl border border-border-default bg-bg-surface">
+                <summary class="focus-ring flex cursor-pointer list-none items-center justify-between gap-4 rounded-xl px-5 py-4 [&::-webkit-details-marker]:hidden">
+                  <h3 class="m-0 text-title-m text-text-primary">{q}</h3>
+                  <span
+                    aria-hidden="true"
+                    class="shrink-0 text-text-secondary transition-transform duration-[var(--pare-motion-base)] ease-pare group-open:rotate-180"
+                  >
+                    <ChevronDown size={20} strokeWidth={2} />
+                  </span>
+                </summary>
+                <p class="m-0 px-5 pb-5 text-body-m text-text-secondary">{a}</p>
+              </details>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    <!-- Final CTA -->
+    <section aria-labelledby="cta-title" class="defer-render [--cis:294px] md:[--cis:314px] bg-bg-surface pb-16 md:pb-24">
+      <div class="page">
+        <div class="flex flex-col items-center rounded-xl bg-accent-default px-6 py-14 text-center md:px-12 md:py-[72px]">
+          <h2 id="cta-title" class="m-0 text-heading-h1 text-text-on-accent md:text-display-l">Get your space back.</h2>
+          <p class="mb-0 mt-5 max-w-[600px] text-body-l text-text-on-accent">
+            A small download. No account. Works on Windows 10 and 11.
+          </p>
+          <Button
+            href={download.href}
+            size="l"
+            variant="secondary"
+            icon={download.icon}
+            className="mt-5 max-sm:w-full focus-visible:outline-text-on-accent"
+          >
+            {download.label}
+          </Button>
+        </div>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Base>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <title>Pare</title>
+  <defs>
+    <linearGradient id="pare-tile" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3352CC"/>
+      <stop offset="1" stop-color="#21368C"/>
+    </linearGradient>
+  </defs>
+  <path d="M30 0H64V64H0V30A30 30 0 0 1 30 0Z" fill="url(#pare-tile)"/>
+  <path d="M30 16A17 17 0 1 0 47 33L30 33Z" fill="#FFFFFF"/>
+  <path d="M35 11A17 17 0 0 1 52 28L35 28Z" fill="#9DB0FF"/>
+</svg>
