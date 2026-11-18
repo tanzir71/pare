@@ -49,6 +49,12 @@ pub struct Node {
     pub sub_newest: Timestamp,
     /// Number of leaves in the subtree that were not walked (links, excluded, errors).
     pub sub_opaque: u32,
+    /// Files in this directory that weren't kept as nodes (whole-drive scans keep only the
+    /// files detectors need); they still count toward every total.
+    pub folded_files: u32,
+    pub folded_allocated: u64,
+    pub folded_logical: u64,
+    pub folded_newest: Timestamp,
 }
 
 impl Node {
@@ -74,6 +80,10 @@ impl Node {
             sub_files: 0,
             sub_newest: e.modified,
             sub_opaque: 0,
+            folded_files: 0,
+            folded_allocated: 0,
+            folded_logical: 0,
+            folded_newest: 0,
         }
     }
 
@@ -195,10 +205,10 @@ impl Tree {
         }
         for (n, owns) in self.nodes.iter_mut().zip(own.iter().copied()) {
             if n.is_dir {
-                n.sub_allocated = 0;
-                n.sub_logical = 0;
-                n.sub_files = 0;
-                n.sub_newest = n.modified;
+                n.sub_allocated = n.folded_allocated;
+                n.sub_logical = n.folded_logical;
+                n.sub_files = n.folded_files as u64;
+                n.sub_newest = n.modified.max(n.folded_newest);
                 n.sub_opaque = u32::from(n.leaf != Leaf::No);
             } else {
                 n.sub_allocated = if owns { n.allocated } else { 0 };

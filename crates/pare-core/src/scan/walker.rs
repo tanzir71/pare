@@ -18,12 +18,35 @@ struct DirResult {
     leaves: Vec<(RawEntry, Leaf)>,
     subdirs: Vec<(RawEntry, DirResult)>,
     error: bool,
+    folded: (u32, u64, u64, i64),
+}
+
+/// Which files become tree nodes. Directories are always kept.
+#[derive(Clone, Debug)]
+pub struct Keep {
+    /// Keep every file (folder scans).
+    pub all: bool,
+    /// Keep files at least this large under these folders (0 = every file, e.g. Downloads).
+    pub under: Vec<(PathBuf, u64)>,
+    /// Keep files at least this large (large-file candidates).
+    pub min_bytes: u64,
+}
+
+impl Default for Keep {
+    fn default() -> Self {
+        Keep {
+            all: true,
+            under: Vec::new(),
+            min_bytes: u64::MAX,
+        }
+    }
 }
 
 pub struct Walker<'a> {
     pub env: &'a Env,
     pub cancel: &'a AtomicBool,
     pub progress: &'a Progress,
+    pub keep: Keep,
 }
 
 static DIR_TICK: AtomicU64 = AtomicU64::new(0);
@@ -51,7 +74,7 @@ impl Walker<'_> {
                         DirResult::default(),
                     );
                 }
-                let r = self.walk_dir(root);
+                let r = self.walk_dir(root, self.keep_min(root, if self.keep.all { 0 } else { self.keep.min_bytes }));
                 (root.clone(), Some(meta), Leaf::No, r)
             })
             .collect();
@@ -76,6 +99,13 @@ impl Walker<'_> {
                 if r.error {
                     tree.nodes[id as usize].leaf = Leaf::Error;
                 }
+                {
+                    let n = &mut tree.nodes[id as usize];
+                    n.folded_files = r.folded.0;
+                    n.folded_allocated = r.folded.1;
+                    n.folded_logical = r.folded.2;
+                    n.folded_newest = r.folded.3;
+                }
                 let start = tree.nodes.len() as u32;
                 let count = (r.leaves.len() + r.subdirs.len()) as u32;
                 for (e, leaf) in &r.leaves {
@@ -97,7 +127,17 @@ impl Walker<'_> {
         tree
     }
 
-    fn walk_dir(&self, path: &Path) -> DirResult {
+    /// Smallest file size kept under `dir`, given the parent's.
+    fn keep_min(&self, dir: &Path, parent_min: u64) -> u64 {
+        self.keep
+            .under
+            .iter()
+            .filter(|(u, _)| platform::path_starts_with(dir, u))
+            .map(|(_, m)| *m)
+            .fold(parent_min, u64::min)
+    }
+
+    fn walk_dir(&self, path: &Path, keep_min: u64) -> DirResult {
         if self.cancel.load(Ordering::Relaxed) {
             return DirResult::default();
         }
@@ -119,6 +159,7 @@ impl Walker<'_> {
         let mut to_walk = Vec::new();
         let mut bytes = 0u64;
         let mut files = 0u64;
+        let mut folded = (0u32, 0u64, 0u64, 0i64);
         for e in entries {
             if e.is_dir {
                 if !e.is_traversable_dir() {
@@ -134,7 +175,14 @@ impl Walker<'_> {
             } else {
                 files += 1;
                 bytes += e.allocated;
-                leaves.push((e, Leaf::No));
+                if e.logical >= keep_min {
+                    leaves.push((e, Leaf::No));
+                } else {
+                    folded.0 += 1;
+                    folded.1 += e.allocated;
+                    folded.2 += e.logical;
+                    folded.3 = folded.3.max(e.modified);
+                }
             }
         }
         self.progress.files.fetch_add(files, Ordering::Relaxed);
@@ -142,7 +190,7 @@ impl Walker<'_> {
         let subdirs = to_walk
             .into_par_iter()
             .map(|(e, child)| {
-                let r = self.walk_dir(&child);
+                let r = self.walk_dir(&child, self.keep_min(&child, keep_min));
                 (e, r)
             })
             .collect();
@@ -150,6 +198,7 @@ impl Walker<'_> {
             leaves,
             subdirs,
             error: false,
+            folded,
         }
     }
 }

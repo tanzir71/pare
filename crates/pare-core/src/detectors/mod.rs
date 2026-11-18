@@ -3,6 +3,7 @@
 
 pub mod claude;
 pub mod codex;
+pub mod duplicates;
 pub mod ollama;
 pub mod quick;
 
