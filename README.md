@@ -4,7 +4,7 @@
 
 Pare is a free, open-source cleanup app for Windows 10 and 11. It finds caches, idle build folders, AI-tool logs and forgotten downloads, and tells you what's safe to remove **before** anything is deleted.
 
-> Status: in development. See [docs/MILESTONES.md](docs/MILESTONES.md) for the plan.
+> Status: M0–M7 implemented and tested locally; not yet released. See [docs/MILESTONES.md](docs/MILESTONES.md), [CHANGELOG.md](CHANGELOG.md) and [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
 
 ## Why Pare
 
@@ -28,6 +28,16 @@ pnpm install
 pnpm --filter web dev            # landing page
 pnpm --filter desktop tauri dev  # desktop app
 cargo test -p pare-core
+```
+
+Command line (read-only unless you pass `--yes`):
+
+```bash
+pare scan [--path <folder>]... [--json]        # suggestions, like the app
+pare clean --rule claude-code.debug-logs        # dry run; add --yes to do it
+pare rules check                                # list and measure each rule's paths
+pare mcp                                        # MCP server for coding agents (propose, never execute)
+pare index C:\ --save                           # fast-mode index (administrator terminal)
 ```
 
 ## Contribute a cleanup rule

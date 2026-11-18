@@ -51,4 +51,6 @@ pub struct DetectCtx<'a> {
     pub thresholds: &'a Thresholds,
     /// Scan-root node → label shown as the group header ("Documents", "This PC (C:)").
     pub root_labels: &'a [(NodeId, String)],
+    /// Installed apps (Uninstall registry keys), for "installer already installed".
+    pub installed: Vec<(String, Option<String>)>,
 }

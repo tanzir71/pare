@@ -358,3 +358,29 @@ fn fifty_repos_under_three_seconds() {
     println!("50 repos in {elapsed:?}");
     assert!(elapsed.as_secs_f64() < 3.0, "took {elapsed:?}");
 }
+
+/// M8: a merged, clean linked worktree is suggested for `git worktree remove`; a dirty one isn't.
+#[test]
+fn stale_worktrees_are_suggested() {
+    let h = FakeHome::new();
+    let code = h.dir("code");
+    let main = code.join("app");
+    let r = repo(&main, "node_modules/\n", &[("package.json", "{}")], OLD);
+    let merged = code.join("app-merged");
+    r.worktree("merged-feature", &merged, None).unwrap();
+    let dirty = code.join("app-dirty");
+    r.worktree("dirty-feature", &dirty, None).unwrap();
+    std::fs::write(dirty.join("wip.txt"), "work in progress").unwrap();
+    let now = pare_core::platform::now_ms();
+    let c = pare_core::projects::stale_worktrees(&main, now);
+    assert_eq!(c.len(), 1, "{c:#?}");
+    assert_eq!(c[0].extra_paths, vec![merged.clone()]);
+    match &c[0].disposal {
+        Disposal::Command { program, args } => {
+            assert_eq!(program, "git");
+            assert!(args.iter().any(|a| a == "remove"));
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(c[0].tier, Tier::Review);
+}

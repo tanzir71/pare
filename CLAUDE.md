@@ -32,8 +32,9 @@ If the Figma MCP server is connected, call `get_design_context` with the node ID
 apps/web/            Astro landing page (M1)
 apps/desktop/        Tauri 2 app: src/ = React + TS UI, src-tauri/ = Rust shell + IPC commands
 crates/pare-core/    Scanning, rules, safety, disposal. Pure Rust; holds most of the tests
-crates/pare-cli/     (later) CLI on top of pare-core
+crates/pare-cli/     `pare` CLI and read-only MCP server on top of pare-core
 packages/tokens/     tokens.json → CSS variables, shared by web and desktop
+packages/ui/         shared React components (landing hero mock and the desktop app)
 rules/               TOML cleanup rules (data, community-editable)
 docs/                Specs (this handoff)
 ```
