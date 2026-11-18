@@ -276,7 +276,7 @@ export function Review({ category }: { category: CategoryId }) {
                           name={r.f.title}
                           path={r.f.paths[0] ?? ""}
                           badge={(() => {
-                            const b = tierBadge(r.f.tier, r.f.badge);
+                            const b = tierBadge(r.f.tier, r.f.badge, r.f.disposal);
                             return { tone: b.tone, label: b.label };
                           })()}
                           age={r.f.tier.kind === "protected" ? (r.f.tier.detail ?? r.f.note ?? undefined) : (r.f.note ?? undefined)}

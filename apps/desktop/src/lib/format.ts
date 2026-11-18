@@ -98,7 +98,14 @@ export function protectExplain(r: ProtectReason): string {
 
 export type BadgeTone = "safe" | "review" | "protected" | "neutral" | "accent";
 
-export function tierBadge(t: Tier, custom?: string | null): { tone: BadgeTone; label: string; sr: string } {
+export function tierBadge(
+  t: Tier,
+  custom?: string | null,
+  disposal?: { kind: string },
+): { tone: BadgeTone; label: string; sr: string } {
+  if (disposal?.kind === "guide" && t.kind !== "protected") {
+    return { tone: "neutral", label: "Guide", sr: "Guide: Pare shows the steps and never removes this itself" };
+  }
   if (t.kind === "protected") {
     return { tone: "protected", label: protectLabel(t.reason), sr: `Protected: ${t.detail ?? protectExplain(t.reason)}` };
   }

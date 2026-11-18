@@ -144,13 +144,14 @@ fn summary_of(id: u64, out: &ScanOutput, detectors: &[DetectorStatus]) -> ScanSu
     }
 }
 
-fn config_from(settings: &Settings) -> ScanConfig {
+fn config_from(settings: &Settings, rules: Arc<pare_core::rules::RuleSet>) -> ScanConfig {
     ScanConfig {
         thresholds: settings.thresholds.clone(),
         exclusions: settings.exclusions.clone(),
         check_in_use: true,
         include_recycle_bin: true,
         now: None,
+        rules: Some(rules),
     }
 }
 
@@ -188,7 +189,7 @@ pub fn scan_start(app: AppHandle, state: State<'_, AppState>, request: ScanReque
     };
     let env = state.env.clone();
     let settings = state.settings.lock().map_err(err)?.clone();
-    let cfg = config_from(&settings);
+    let cfg = config_from(&settings, state.rules.clone());
     let done = Arc::new(AtomicBool::new(false));
 
     // Progress sampler: 4 events per second, independent of the walker.

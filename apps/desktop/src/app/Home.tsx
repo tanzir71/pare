@@ -234,7 +234,7 @@ export function Home() {
             <p className="bg-bg-surface px-4 py-6 text-body-m text-text-secondary">No suggestions match “{query}”.</p>
           ) : (
             results.slice(0, 200).map((f) => {
-              const b = tierBadge(f.tier, f.badge);
+              const b = tierBadge(f.tier, f.badge, f.disposal);
               return (
                 <FileRow
                   key={f.id}

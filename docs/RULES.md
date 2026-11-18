@@ -72,3 +72,25 @@ paths = ["~/.claude/settings*.json", "~/.claude.json", "~/.claude/CLAUDE.md"]
 | `windows.toml` | User temp, crash dumps, thumbnail cache, WER, Recycle Bin, Docker/WSL guides |
 | `browsers.toml` | Chrome and Edge caches (never cookies, history or passwords) |
 | `projects.toml` | Marker → artifact mapping for M4 |
+
+## Engine notes (M3)
+
+- **Matching** is segment-wise: `~/.claude/projects/*/*.jsonl` lists only `projects/`, then each project folder. Reparse points are never traversed.
+- **Filters per file:** `exclude`, every `[[protect]]` block, the hard-excluded roots, `min_age_days`, cloud placeholders, and the 24-hour recency window. What's left collapses into the fewest paths (a folder stands in for its contents only when everything inside qualifies and the folder itself wasn't changed in the last 24 hours).
+- **Recently used files** are left out of a rule's finding and reported as a separate Protected row ("used in the last 24 hours"), so one active session never blocks cleaning the rest.
+- **`keep_newest`** applies per path pattern to matched items (versions), never to `/**` contents.
+- **Unverified rules never claim Safe:** a rule with `verified = false` is shown as Review until a maintainer checks it.
+- **`prune` commands** (`pnpm store prune`, `uv cache prune`) report 0 bytes up front because the tool decides what's unused; the Done screen shows what was actually freed (measured before and after).
+- **`active_session_guard`** is the safety pass itself: the recency window, the Restart Manager check, and `requires_closed` process checks apply to every rule.
+- **User rules** (`%APPDATA%\Pare\rules\*.toml`) can add rules but can't shadow a built-in id, can't use `disposal = "command"`, and their `delete` becomes `recycle`.
+
+## Verification (Windows 11, November 2026)
+
+Checked read-only with `pare rules check` (lists and measures matches; never deletes).
+
+| Status | Rules |
+|---|---|
+| `verified = true` (path matched real data) | `browsers.cache` (Edge) · `claude-code.debug-logs` · `claude-code.orphaned-transcripts` · `claude-code.old-transcripts` · `claude-code.file-history` · `claude-code.caches` · `claude-desktop.app-data-guide` · `codex.archived-sessions` · `codex.old-sessions` · `editors.electron-caches` · `cursor.state-backup` · `cursor.state-db-guide` · `lmstudio.models` · `huggingface.hub` · `npm.cache` · `pnpm.store` · `pip.cache` · `uv.cache` · `cargo.registry` · `gradle.caches` · `maven.repository` · `nuget.http-cache` · `nuget.packages` · `windows.user-temp` · `windows.crash-dumps` · `windows.thumbnail-cache` · `windows.wer` · `docker.vhdx-guide` |
+| Not verifiable on the test machine | `claude-code.old-versions` (Claude Code was installed with npm, not the native installer) · `claude-desktop.electron-cache`, `claude-desktop.vm-bundle-archive`, `claude-desktop.vm-bundle` (the installed version uses `%LOCALAPPDATA%\Claude-Data` instead; see below) · `codex.old-releases` (no standalone Codex CLI; the Codex desktop app ships as MSIX packages) · `editors.cpptools-ipch`, `ollama.models`, `yarn.cache`, `go.build-cache` (tool not installed) |
+
+**Claude desktop, new layout.** Current Claude desktop builds keep caches, the VM bundle and Cowork sessions in `%LOCALAPPDATA%\Claude-Data\claude_<id>\`, with a README that says nothing inside may be deleted by hand and points to *Settings → This computer → System → Storage*. Pare therefore treats that folder as never-touch (`[[protect]]`) and only shows a guide (`claude-desktop.app-data-guide`).

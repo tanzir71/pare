@@ -13,7 +13,7 @@ disposal = "delete"
 comes_back = "on-demand"
 why = "Wheels and HTTP responses pip cached."
 if_removed = "pip downloads packages again when needed."
-verified = false
+verified = true
 
 [[rule]]
 id = "uv.cache"
@@ -25,5 +25,5 @@ command = ["uv", "cache", "prune"]
 comes_back = "on-demand"
 why = "uv's package cache."
 if_removed = "uv re-downloads packages on the next sync."
-verified = false
+verified = true
 sources = ["https://github.com/astral-sh/uv/issues/7008"]

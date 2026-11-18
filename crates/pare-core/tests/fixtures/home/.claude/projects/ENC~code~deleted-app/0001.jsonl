@@ -1,0 +1,2 @@
+{"type": "summary", "summary": "fixture"}
+{"type": "user", "cwd": "{HOME}\\code\\deleted-app", "message": {"role": "user", "content": "hi"}}

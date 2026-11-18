@@ -10,6 +10,8 @@ use pare_core::settings::Settings;
 
 pub struct AppState {
     pub env: Env,
+    /// Built-in rules plus the user rules folder, loaded once at startup.
+    pub rules: Arc<pare_core::rules::RuleSet>,
     pub settings: Mutex<Settings>,
     pub scan: Mutex<ScanSlot>,
     pub cleaning: AtomicBool,
@@ -29,7 +31,12 @@ pub struct ScanSlot {
 impl AppState {
     pub fn new(env: Env) -> AppState {
         let settings = Settings::load(&env);
+        let rules = Arc::new(pare_core::rules::RuleSet::with_user_rules(&env.user_rules_dir()));
+        for w in &rules.warnings {
+            tracing::warn!(%w, "user rule ignored");
+        }
         AppState {
+            rules,
             env,
             settings: Mutex::new(settings),
             scan: Mutex::new(ScanSlot::default()),

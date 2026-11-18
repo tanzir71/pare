@@ -36,7 +36,7 @@ interface Props {
 
 export function DetailsPanel({ finding: f, onClose, onDispose, onKeep, busy }: Props) {
   const home = useApp((s) => s.folders?.home);
-  const b = tierBadge(f.tier, f.badge);
+  const b = tierBadge(f.tier, f.badge, f.disposal);
   const action = disposalAction(f);
   const protectedTier = f.tier.kind === "protected" ? f.tier : null;
   const facts: [string, string][] = [

@@ -20,7 +20,7 @@ disposal = "recycle"
 comes_back = "no"
 why = "Sessions you archived. Archiving moves them here but doesn't free space."
 if_removed = "You can't reopen these archived sessions."
-verified = false
+verified = true
 sources = ["https://aident.ai/blog/fix-codex-session-jsonl-disk-space"]
 
 [[rule]]
@@ -33,7 +33,7 @@ disposal = "recycle"
 comes_back = "no"
 why = "Session recordings ('rollouts'). Sub-agent runs can make these very large."
 if_removed = "You can't resume these sessions."
-verified = false
+verified = true
 sources = ["https://github.com/openai/codex/issues/34061", "https://codex.danielvaughan.com/2026/06/08/codex-cli-session-lifecycle-archive-resume-fork-rollout-persistence-management/"]
 
 [[rule]]

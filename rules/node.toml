@@ -13,7 +13,7 @@ disposal = "delete"
 comes_back = "on-demand"
 why = "Package tarballs and metadata npm downloaded before."
 if_removed = "npm downloads packages again when you install."
-verified = false
+verified = true
 sources = ["https://docs.npmjs.com/cli/using-npm/config#cache", "https://github.com/nodejs/help/issues/2915"]
 
 [[rule]]
@@ -26,7 +26,7 @@ command = ["pnpm", "store", "prune"]
 comes_back = "on-demand"
 why = "pnpm's shared package store. Pruning removes packages no project references."
 if_removed = "Projects still work; pnpm re-downloads anything missing."
-verified = false
+verified = true
 sources = ["https://usekudu.com/cleaners/pnpm"]
 
 [[rule]]

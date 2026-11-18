@@ -128,3 +128,8 @@ pub fn list_drives() -> Vec<Drive> {
         })
         .collect()
 }
+
+/// Pare only elevates on Windows.
+pub fn is_elevated() -> bool {
+    false
+}
