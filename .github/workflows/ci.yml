@@ -3,7 +3,33 @@ name: CI
 on:
   push:
     branches: [main]
+    paths:
+      - "**"
+      # Docs-only changes don't need a build. Later lines win, so the files below that
+      # builds and tests read still trigger CI.
+      - "!**/*.md"
+      - "!design/previews/**"
+      - "!packaging/**"
+      - "!scripts/**"
+      - "!LICENSE"
+      - "!.github/ISSUE_TEMPLATE/**"
+      - "!.github/release/**"
+      - "docs/DESIGN.md"   # tokens test
+      - "CHANGELOG.md"     # landing changelog page
+      - "CLAUDE.md"        # invariants checklist test
   pull_request:
+    paths:
+      - "**"
+      - "!**/*.md"
+      - "!design/previews/**"
+      - "!packaging/**"
+      - "!scripts/**"
+      - "!LICENSE"
+      - "!.github/ISSUE_TEMPLATE/**"
+      - "!.github/release/**"
+      - "docs/DESIGN.md"   # tokens test
+      - "CHANGELOG.md"     # landing changelog page
+      - "CLAUDE.md"        # invariants checklist test
   workflow_dispatch:
 
 concurrency:

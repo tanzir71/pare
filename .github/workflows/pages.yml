@@ -6,7 +6,9 @@ on:
     paths:
       - "apps/web/**"
       - "packages/**"
-      - "design/**"
+      - "design/tokens.json"
+      - "design/brand/**"
+      - "CHANGELOG.md"
       - "pnpm-lock.yaml"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
