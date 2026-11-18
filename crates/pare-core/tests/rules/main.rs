@@ -58,10 +58,12 @@ fn copy_fixture(h: &FakeHome, age_days: f64) {
                 if name.ends_with(".jsonl") {
                     let esc = serde_json::to_string(&home.to_string_lossy()).unwrap();
                     let esc = &esc[1..esc.len() - 1];
-                    bytes = String::from_utf8(bytes)
-                        .unwrap()
-                        .replace("{HOME}", esc)
-                        .into_bytes();
+                    let mut s = String::from_utf8(bytes).unwrap().replace("{HOME}", esc);
+                    // Fixture cwds use Windows separators; use the host's elsewhere.
+                    if cfg!(not(windows)) {
+                        s = s.replace("\\\\", "/");
+                    }
+                    bytes = s.into_bytes();
                 }
                 fs::write(&out, bytes).unwrap();
             }
