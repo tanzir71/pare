@@ -126,11 +126,16 @@ pub fn orphaned_transcripts(w: &Walker, base: &Base, matches: &[Match]) -> Vec<C
                     continue;
                 }
                 // The drive itself may just be unplugged.
-                let drive_ok = cwd.components().next().is_some_and(|c| {
-                    let mut root = PathBuf::from(c.as_os_str());
-                    root.push("\\");
-                    platform::stat(&root).is_ok()
-                });
+                // The drive itself may be unplugged (then we can't tell).
+                let drive_ok = match cwd.components().next() {
+                    Some(std::path::Component::Prefix(p)) => {
+                        let mut root = PathBuf::from(p.as_os_str());
+                        root.push(std::path::MAIN_SEPARATOR_STR);
+                        platform::stat(&root).is_ok()
+                    }
+                    Some(std::path::Component::RootDir) => true,
+                    _ => false,
+                };
                 if drive_ok && encode(&cwd.to_string_lossy()).eq_ignore_ascii_case(&name) {
                     orphans.push(m.clone());
                 } else if drive_ok {

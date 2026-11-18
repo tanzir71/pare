@@ -101,15 +101,33 @@ fn matching_trash_items(
     wanted: &[RecycledByPare],
 ) -> Result<Vec<(RecycledByPare, trash::TrashItem)>, String> {
     let items = trash::os_limited::list().map_err(|e| e.to_string())?;
+    // The Recycle Bin reports long paths; the log may hold 8.3 names (C:\Users\RUNNER~1) when
+    // %TEMP% was short. Compare canonical forms of the parent folder plus the name.
+    let canon = |p: &Path| -> PathBuf {
+        let parent = p.parent().unwrap_or(p);
+        let parent = std::fs::canonicalize(parent).unwrap_or_else(|_| parent.to_path_buf());
+        let parent = PathBuf::from(
+            parent
+                .to_string_lossy()
+                .trim_start_matches(r"\\?\")
+                .to_string(),
+        );
+        match p.file_name() {
+            Some(n) => parent.join(n),
+            None => parent,
+        }
+    };
+    let same =
+        |a: &Path, b: &Path| platform::path_starts_with(a, b) && platform::path_starts_with(b, a);
     let mut out = Vec::new();
     for w in wanted {
+        let want = canon(&w.path);
         // Same original path, deleted within 10 minutes of the logged time.
         let best = items
             .iter()
             .filter(|t| {
                 let orig = t.original_path();
-                platform::path_starts_with(&orig, &w.path)
-                    && platform::path_starts_with(&w.path, &orig)
+                same(&orig, &w.path) || same(&canon(&orig), &want)
             })
             .min_by_key(|t| (t.time_deleted * 1000 - w.ts).abs());
         if let Some(t) = best {
