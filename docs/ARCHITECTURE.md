@@ -144,8 +144,24 @@ Tauri security: allowlist only these commands, a strict CSP, no remote URLs in t
 | `%LOCALAPPDATA%\Pare\logs\app.log` | tracing logs (rotated, 5 × 2 MB) |
 | `%LOCALAPPDATA%\Pare\history.db` | operations and items (SQLite) |
 | `%LOCALAPPDATA%\Pare\index\<volume-serial>.db` | M6 file index + last USN |
+| `%LOCALAPPDATA%\Pare\growth.json` | M8 size per rule over time (last 2 days in full, then one per day, 60 days) |
+| `%LOCALAPPDATA%\Pare\monitor.json` | M8 last growth check, alerts raised, last scheduled run per rule |
+| `%LOCALAPPDATA%\Pare\monitor.lock` | M8 held during a monitor pass so two Pare windows never run a schedule twice |
 
 Pare must exclude its own folders from scans.
+
+## 6a. Monitor, schedules and guide actions (M8)
+
+- `pare_core::monitor` runs only while Pare runs (window or notification area icon). The desktop shell calls `monitor::tick` every 15 minutes; Pare installs no service, no scheduled task and no startup entry.
+- Growth: a rules-only scan (`scanner::scan_rules`, no folder walk, sizes only) records one snapshot per check; `growth::alerts` compares the latest snapshot with the oldest one from the last 7½ days that's at least 20 hours older. Whole-PC scans record a snapshot too.
+- Schedules: `settings.schedules` lists opted-in rules. `schedule::check` admits only built-in, verified, Safe, non-admin rules without detectors; `schedule::run` scans just those rules with in-use checks and the user's exclusions, keeps Safe selectable findings, and cleans them through the normal executor with the History label "Scheduled cleanup".
+- Guide actions (`dispose::guide`): `[[rule.action]]` steps run on a click — `docker system prune --force`, `wsl --shutdown`, `pare:compact-vhd` (diskpart: attach read-only, compact, detach; refused while the disk is open) and `dism.exe /Online /Cleanup-Image /StartComponentCleanup`. Admin steps run only if Pare is already elevated; Pare never asks for elevation on its own for them. Each action is logged before it runs.
+
+## 6b. Localization (M8)
+
+- UI: `apps/desktop/src/i18n/` (`en.ts` is the source; `es.ts` must have every key). The language follows Settings, or Windows when Settings says "Match Windows".
+- Core: `pare_core::i18n` translates text pare-core produces (rule descriptions, card titles, detector explanations, cleanup messages, the notification area menu). Keys are the English text; catalogs are `crates/pare-core/locales/<lang>.toml`. The UI tells the core its language with `locale_set`; new scans use it.
+- `cargo test -p pare-core --test i18n` fails if any rule text or `tr`/`trf` call lacks a translation, if placeholders differ, or if a catalog has stale entries.
 
 ## 7. Build and release
 

@@ -83,7 +83,7 @@ impl Env {
             home,
             appdata,
             local_appdata,
-            system_root: None,
+            system_root: Some(root.join("Windows")),
             vars: BTreeMap::new(),
             is_fake: true,
         };
@@ -154,5 +154,15 @@ impl Env {
     /// `%LOCALAPPDATA%\Pare\index`
     pub fn index_dir(&self) -> PathBuf {
         self.pare_data_dir().join("index")
+    }
+
+    /// `%LOCALAPPDATA%\Pare\growth.json` (M8 size history).
+    pub fn growth_path(&self) -> PathBuf {
+        self.pare_data_dir().join("growth.json")
+    }
+
+    /// `%LOCALAPPDATA%\Pare\monitor.json` (M8: last checks and scheduled runs).
+    pub fn monitor_path(&self) -> PathBuf {
+        self.pare_data_dir().join("monitor.json")
     }
 }

@@ -25,6 +25,8 @@ pub struct CleanOptions {
     pub exclusions: Vec<PathBuf>,
     pub check_in_use: bool,
     pub command_timeout: Duration,
+    /// Shown before the History title, e.g. "Scheduled cleanup".
+    pub label: Option<String>,
 }
 
 impl CleanOptions {
@@ -35,6 +37,7 @@ impl CleanOptions {
             exclusions: Vec::new(),
             check_in_use: true,
             command_timeout: Duration::from_secs(300),
+            label: None,
         }
     }
 }
@@ -106,7 +109,7 @@ pub struct CleanProgress {
     pub freed: u64,
 }
 
-fn new_op_id(now: Timestamp) -> String {
+pub(crate) fn new_op_id(now: Timestamp) -> String {
     use std::sync::atomic::{AtomicU32, Ordering};
     static SEQ: AtomicU32 = AtomicU32::new(0);
     format!(
@@ -200,14 +203,14 @@ fn validate(
     if !f.disposal.is_actionable() {
         return Err((
             FailReason::Protected,
-            "Pare only shows steps for this item".into(),
+            crate::i18n::tr("Pare only shows steps for this item"),
         ));
     }
     if matches!(f.disposal, Disposal::EmptyRecycleBin { .. }) {
         return Ok(Vec::new());
     }
     if f.paths.is_empty() {
-        return Err((FailReason::NotFound, "Nothing to remove".into()));
+        return Err((FailReason::NotFound, crate::i18n::tr("Nothing to remove")));
     }
     let mut recent: Vec<PathBuf> = Vec::new();
     for p in &f.paths {
@@ -242,7 +245,7 @@ fn validate(
         let s = match probe_subtree(p, env) {
             Ok(s) => s,
             Err(e) if classify_io(&e) == FailReason::NotFound => {
-                return Err((FailReason::NotFound, "Already gone".into()));
+                return Err((FailReason::NotFound, crate::i18n::tr("Already gone")));
             }
             Err(e) => return Err((classify_io(&e), e.to_string())),
         };
@@ -253,7 +256,10 @@ fn validate(
             ));
         }
         if s.newest > opts.scan_started {
-            return Err((FailReason::ChangedSinceScan, "Changed since scan".into()));
+            return Err((
+                FailReason::ChangedSinceScan,
+                crate::i18n::tr("Changed since scan"),
+            ));
         }
         if s.newest > now - opts.recent_ms {
             return Err((
@@ -337,13 +343,16 @@ fn describe_failure(path: &Path, e: &io::Error) -> (FailReason, String) {
             match platform::processes_holding(&[path.to_path_buf()]) {
                 Ok(h) if !h.is_empty() => {
                     let names: Vec<String> = h.into_iter().map(|h| h.name).collect();
-                    return (FailReason::InUse, format!("Open in {}", names.join(", ")));
+                    return (
+                        FailReason::InUse,
+                        crate::i18n::trf("Open in {apps}", &[("apps", &names.join(", "))]),
+                    );
                 }
-                _ if reason == FailReason::InUse => "In use by another app".to_string(),
-                _ => "Access denied".to_string(),
+                _ if reason == FailReason::InUse => crate::i18n::tr("In use by another app"),
+                _ => crate::i18n::tr("Access denied"),
             }
         }
-        FailReason::NotFound => "Already gone".to_string(),
+        FailReason::NotFound => crate::i18n::tr("Already gone"),
         _ => e.to_string(),
     };
     (reason, msg)
@@ -415,7 +424,11 @@ pub fn run_command(
         output.push_str(&err);
     }
     if output.len() > 8000 {
-        output.truncate(8000);
+        let mut cut = 8000;
+        while !output.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        output.truncate(cut);
         output.push_str("\n…");
     }
     match status {
@@ -469,7 +482,10 @@ pub fn clean(
                 names.dedup();
                 let mut r = result_for(f, ItemStatus::Skipped);
                 r.reason = Some(FailReason::InUse);
-                r.error = Some(format!("Open in {}", names.join(", ")));
+                r.error = Some(crate::i18n::trf(
+                    "Open in {apps}",
+                    &[("apps", &names.join(", "))],
+                ));
                 results.push(r);
             }
         }
@@ -480,10 +496,15 @@ pub fn clean(
     let mut begin = vec![LogRecord::OpBegin {
         op: op.clone(),
         ts: started,
-        title: format!(
-            "Free up {}",
-            format_bytes(plan.iter().map(|f| f.bytes).sum())
-        ),
+        title: {
+            let size = format_bytes(plan.iter().map(|f| f.bytes).sum());
+            match &opts.label {
+                Some(l) => {
+                    crate::i18n::trf("{label}: free up {size}", &[("label", l), ("size", &size)])
+                }
+                None => crate::i18n::trf("Free up {size}", &[("size", &size)]),
+            }
+        },
         items: plan.len() as u64,
         bytes: plan.iter().map(|f| f.bytes).sum(),
     }];
@@ -577,7 +598,7 @@ pub fn clean(
                         batch_err
                             .as_ref()
                             .map(|e| e.to_string())
-                            .unwrap_or_else(|| "Couldn't move to the Recycle Bin".into()),
+                            .unwrap_or_else(|| crate::i18n::tr("Couldn't move to the Recycle Bin")),
                     ));
                     r.reason = Some(reason);
                     r.error = Some(msg);
@@ -791,11 +812,9 @@ fn failure_summary(results: &[CleanItemResult]) -> Option<String> {
         return None;
     }
     let n = failed.len() as u64;
-    let items = if n == 1 {
-        "1 item".to_string()
-    } else {
-        format!("{} items", format_count(n))
-    };
+    let count = format_count(n);
+    let args = [("n", count.as_str())];
+    use crate::i18n::{tr, trf};
     let in_use = failed
         .iter()
         .filter(|r| r.reason == Some(FailReason::InUse))
@@ -809,16 +828,15 @@ fn failure_summary(results: &[CleanItemResult]) -> Option<String> {
             )
         })
         .count();
-    let (they, were) = if n == 1 {
-        ("it's", "was")
-    } else {
-        ("they're", "were")
-    };
-    Some(if in_use as u64 == n {
-        format!("{items} couldn't be removed because {they} in use")
-    } else if changed as u64 == n {
-        format!("{items} changed since the scan and {were} kept")
-    } else {
-        format!("{items} couldn't be removed")
+    Some(match (in_use as u64 == n, changed as u64 == n, n == 1) {
+        (true, _, true) => tr("1 item couldn't be removed because it's in use"),
+        (true, _, false) => trf(
+            "{n} items couldn't be removed because they're in use",
+            &args,
+        ),
+        (_, true, true) => tr("1 item changed since the scan and was kept"),
+        (_, true, false) => trf("{n} items changed since the scan and were kept", &args),
+        (_, _, true) => tr("1 item couldn't be removed"),
+        _ => trf("{n} items couldn't be removed", &args),
     })
 }

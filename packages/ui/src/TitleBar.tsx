@@ -10,6 +10,8 @@ export interface TitleBarProps extends Omit<HTMLAttributes<HTMLDivElement>, "chi
   onClose?: () => void;
   /** Swaps the maximize glyph for "restore" and its label. */
   maximized?: boolean;
+  /** Caption button names. Defaults: "Minimize", "Maximize", "Restore", "Close". */
+  labels?: Partial<Record<"minimize" | "maximize" | "restore" | "close", string>>;
 }
 
 const caption =
@@ -28,6 +30,7 @@ export function TitleBar({
   onMaximize,
   onClose,
   maximized = false,
+  labels,
   className,
   ...props
 }: TitleBarProps) {
@@ -45,7 +48,7 @@ export function TitleBar({
       <div className="flex h-full">
         <button
           type="button"
-          aria-label="Minimize"
+          aria-label={labels?.minimize ?? "Minimize"}
           onClick={onMinimize}
           className={cx(caption, "hover:bg-bg-subtle")}
         >
@@ -53,7 +56,7 @@ export function TitleBar({
         </button>
         <button
           type="button"
-          aria-label={maximized ? "Restore" : "Maximize"}
+          aria-label={maximized ? (labels?.restore ?? "Restore") : (labels?.maximize ?? "Maximize")}
           onClick={onMaximize}
           className={cx(caption, "hover:bg-bg-subtle")}
         >
@@ -71,7 +74,7 @@ export function TitleBar({
         </button>
         <button
           type="button"
-          aria-label="Close"
+          aria-label={labels?.close ?? "Close"}
           onClick={onClose}
           className={cx(caption, "hover:bg-keep-fg hover:text-text-on-accent")}
         >

@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { cx, focusRing } from "@pare/ui";
+import { useT } from "../i18n";
 
 interface SheetProps {
   open: boolean;
@@ -16,6 +17,7 @@ interface SheetProps {
 
 /** Modal sheet on the native <dialog> element: focus is trapped, Esc closes. */
 export function Sheet({ open, onClose, title, description, children, footer, placement = "center", className }: SheetProps) {
+  const { t } = useT();
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     const d = ref.current;
@@ -53,7 +55,7 @@ export function Sheet({ open, onClose, title, description, children, footer, pla
             </div>
             <button
               type="button"
-              aria-label="Close"
+              aria-label={t("common.close")}
               onClick={onClose}
               className={cx("-mr-2 rounded-md p-2 text-text-secondary hover:bg-bg-subtle", focusRing)}
             >

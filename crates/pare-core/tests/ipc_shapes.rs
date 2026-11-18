@@ -160,14 +160,20 @@ fn settings_shape() {
             "exclusions",
             "hiddenCards",
             "language",
+            "monitor",
             "onboardingDone",
             "projectRoots",
             "purgePareItemsAfterDays",
+            "schedules",
             "theme",
             "thresholds"
         ]
     );
     assert_eq!(v["theme"], "system");
+    assert_eq!(
+        keys(&v["monitor"]),
+        ["alertGb", "checkHours", "enabled", "tray"]
+    );
     assert_eq!(
         keys(&serde_json::to_value(Thresholds::default()).unwrap()),
         [

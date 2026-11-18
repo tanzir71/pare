@@ -19,8 +19,9 @@ tauri-build = { version = "2.7.5", features = [] }
 pare-core = { path = "../../../crates/pare-core" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
-tauri = { version = "2.12.6", features = [] }
+tauri = { version = "2.12.6", features = ["tray-icon"] }
 tauri-plugin-dialog = "2.8.4"
+tauri-plugin-notification = "2.4.0"
 tauri-plugin-process = "2.4.0"
 tauri-plugin-updater = "2.14.1"
 tracing = "0.1.44"

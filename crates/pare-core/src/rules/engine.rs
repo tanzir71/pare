@@ -11,6 +11,7 @@ use super::matcher::{Match, PathPattern, PathSet};
 use super::{DisposalDecl, LoadedTool, RuleDef, RuleSet, TierDecl, category_for, vars};
 use crate::env::Env;
 use crate::format::{age_phrase, format_bytes};
+use crate::i18n::{tr, trf};
 use crate::platform::{self, RawEntry};
 use crate::safety::protected_paths;
 use crate::scan::measure::{Candidate, FileAcc, Measured, account};
@@ -34,6 +35,17 @@ pub struct RuleCtx<'a> {
 
 /// Run every rule whose category is `category`.
 pub fn run_category(set: &RuleSet, ctx: &RuleCtx, category: CategoryId) -> Vec<Candidate> {
+    run_rules(set, ctx, |tool, rule| {
+        category_for(&tool.tool, rule) == category
+    })
+}
+
+/// Run every rule `pick` accepts.
+pub fn run_rules(
+    set: &RuleSet,
+    ctx: &RuleCtx,
+    pick: impl Fn(&LoadedTool, &RuleDef) -> bool,
+) -> Vec<Candidate> {
     let protect = PathSet::new(
         set.protect
             .iter()
@@ -42,10 +54,9 @@ pub fn run_category(set: &RuleSet, ctx: &RuleCtx, category: CategoryId) -> Vec<C
     );
     let mut out = Vec::new();
     for (tool, rule) in set.all_rules() {
-        if category_for(&tool.tool, rule) != category {
-            continue;
+        if pick(tool, rule) {
+            out.extend(run_rule(tool, rule, ctx, &protect));
         }
-        out.extend(run_rule(tool, rule, ctx, &protect));
     }
     out
 }
@@ -118,6 +129,14 @@ pub fn run_rule(
         DisposalDecl::Guide => matches
             .iter()
             .filter_map(|m| {
+                if rule.unmeasured {
+                    // Only the tool knows what it can free (DISM): no size, and no paths, so
+                    // nothing here can ever be selected or removed.
+                    let mut cand = base.candidate(&tr(&rule.title), Collected::default());
+                    cand.source_path = Some(m.path().to_path_buf());
+                    cand.note = Some(tr("Size known after analysis"));
+                    return Some(cand);
+                }
                 let pm = crate::scan::measure::measure_path(m.path());
                 if pm.files == 0 {
                     return None;
@@ -126,7 +145,7 @@ pub fn run_rule(
                 c.units.push(m.path().to_path_buf());
                 c.newest = pm.newest;
                 c.dates.include(pm.created_min, pm.newest, 0);
-                let mut cand = base.candidate(&rule.title, c);
+                let mut cand = base.candidate(&tr(&rule.title), c);
                 if let Some(x) = cand.measured.as_mut() {
                     x.bytes = pm.allocated;
                     x.logical = pm.logical;
@@ -135,9 +154,9 @@ pub fn run_rule(
                 cand.title = m
                     .path()
                     .file_name()
-                    .map(|n| format!("{} · {}", rule.title, n.to_string_lossy()))
-                    .unwrap_or_else(|| rule.title.clone());
-                cand.note = Some("Guide".into());
+                    .map(|n| format!("{} · {}", tr(&rule.title), n.to_string_lossy()))
+                    .unwrap_or_else(|| tr(&rule.title));
+                cand.note = Some(tr("Guide"));
                 Some(cand)
             })
             .collect(),
@@ -150,7 +169,7 @@ pub fn run_rule(
                 return Vec::new();
             }
             let prune = rule.command.iter().any(|a| a == "prune");
-            let mut cand = base.candidate_with(&rule.title, c, !prune);
+            let mut cand = base.candidate_with(&tr(&rule.title), c, !prune);
             cand.extra_paths = matches.iter().map(|m| m.path().to_path_buf()).collect();
             if prune {
                 // The tool decides what's unused: don't promise space we can't confirm.
@@ -159,17 +178,17 @@ pub fn run_rule(
                     m.bytes = 0;
                     m.logical = 0;
                 }
-                cand.note = Some(format!(
-                    "Frees only what no project uses (store: {})",
-                    format_bytes(size)
+                cand.note = Some(trf(
+                    "Frees only what no project uses (store: {size})",
+                    &[("size", &format_bytes(size))],
                 ));
-                cand.facts.push(("Store size".into(), format_bytes(size)));
+                cand.facts.push((tr("Store size"), format_bytes(size)));
             }
             vec![cand]
         }
         DisposalDecl::Delete | DisposalDecl::Recycle => {
             let c = w.collect(&matches, false);
-            base.with_recent_companion(&rule.title, c)
+            base.with_recent_companion(&tr(&rule.title), c)
         }
     }
 }
@@ -351,7 +370,18 @@ impl<'a> Base<'a> {
                 }
             }
             DisposalDecl::Guide => Disposal::Guide {
-                steps: self.rule.guide.clone(),
+                steps: self.rule.guide.iter().map(|s| tr(s)).collect(),
+                actions: self
+                    .rule
+                    .action
+                    .iter()
+                    .map(|a| crate::types::GuideAction {
+                        step: a.step,
+                        label: tr(&a.label),
+                        run: a.run.clone(),
+                        admin: a.admin,
+                    })
+                    .collect(),
             },
         }
     }
@@ -376,9 +406,9 @@ impl<'a> Base<'a> {
         };
         files.sort_by_key(|f| std::cmp::Reverse(f.modified));
         let mut cand = Candidate::new(&self.rule.id, self.category, title);
-        cand.source = self.tool.tool.name.clone();
+        cand.source = tr(&self.tool.tool.name);
         cand.source_path = self.source_path.clone();
-        cand.created_by = Some(self.tool.tool.name.clone());
+        cand.created_by = Some(tr(&self.tool.tool.name));
         cand.extra_paths = c.units;
         // A rule nobody has checked on a real PC yet never claims Safe.
         cand.tier = match (self.rule.tier, self.rule.verified) {
@@ -387,25 +417,28 @@ impl<'a> Base<'a> {
         };
         if !self.rule.verified {
             cand.facts.push((
-                "Rule status".into(),
-                "Not yet checked on a real PC, so it's shown as Review".into(),
+                tr("Rule status"),
+                tr("Not yet checked on a real PC, so it's shown as Review"),
             ));
         }
         cand.disposal = self.disposal();
         cand.comes_back = self.rule.comes_back;
-        cand.why = self.rule.why.clone();
-        cand.if_removed = self.rule.if_removed.clone();
+        cand.why = tr(&self.rule.why);
+        cand.if_removed = tr(&self.rule.if_removed);
         cand.admin = self.rule.admin;
         if self.rule.requires_closed {
             cand.requires_closed = self.tool.tool.processes.clone();
         }
         if c.newest > 0 {
-            cand.note = Some(format!("Changed {}", age_phrase(self.now, c.newest)));
+            cand.note = Some(trf(
+                "Changed {when}",
+                &[("when", &age_phrase(self.now, c.newest))],
+            ));
         }
         if let Some(docs) = &self.tool.tool.docs {
-            cand.facts.push(("Docs".into(), docs.clone()));
+            cand.facts.push((tr("Docs"), docs.clone()));
         }
-        cand.facts.push(("Rule".into(), self.rule.id.clone()));
+        cand.facts.push((tr("Rule"), self.rule.id.clone()));
         cand.measured = Some(Measured {
             bytes,
             logical,
@@ -426,14 +459,17 @@ impl<'a> Base<'a> {
         if self.check_in_use && c.units.len() > 1 {
             let (held, names) = split_held(&mut c);
             if !held.files.is_empty() || !held.units.is_empty() {
-                let mut k = self.candidate(&format!("{title}: open in another app"), held);
+                let mut k = self.candidate(
+                    &trf("{title}: open in another app", &[("title", title)]),
+                    held,
+                );
                 k.tier = Tier::Protected {
                     reason: ProtectReason::InUse,
-                    detail: Some(format!("Open in {names}")),
+                    detail: Some(trf("Open in {apps}", &[("apps", &names)])),
                 };
-                k.note = Some("In use".into());
-                k.why = "Another app has these files open, so Pare leaves them alone.".into();
-                k.if_removed = "Nothing: Pare doesn't remove files that are in use.".into();
+                k.note = Some(tr("In use"));
+                k.why = tr("Another app has these files open, so Pare leaves them alone.");
+                k.if_removed = tr("Nothing: Pare doesn't remove files that are in use.");
                 out.push(k);
             }
         }
@@ -446,18 +482,17 @@ impl<'a> Base<'a> {
                 let mut k = Candidate::new(
                     &self.rule.id,
                     self.category,
-                    format!("{title}: used in the last 24 hours"),
+                    trf("{title}: used in the last 24 hours", &[("title", title)]),
                 );
-                k.source = self.tool.tool.name.clone();
+                k.source = tr(&self.tool.tool.name);
                 k.source_path = self.source_path.clone();
-                k.created_by = Some(self.tool.tool.name.clone());
+                k.created_by = Some(tr(&self.tool.tool.name));
                 k.tier = Tier::protected(ProtectReason::RecentlyModified);
                 k.disposal = self.disposal();
                 k.comes_back = self.rule.comes_back;
-                k.why =
-                    "These files changed in the last 24 hours, so Pare leaves them alone.".into();
-                k.if_removed = "Nothing: Pare doesn't remove recently used files.".into();
-                k.note = Some("Active now".into());
+                k.why = tr("These files changed in the last 24 hours, so Pare leaves them alone.");
+                k.if_removed = tr("Nothing: Pare doesn't remove recently used files.");
+                k.note = Some(tr("Active now"));
                 let newest = recent.iter().map(|f| f.modified).max().unwrap_or(0);
                 k.extra_paths = self.source_path.iter().cloned().collect();
                 k.measured = Some(Measured {

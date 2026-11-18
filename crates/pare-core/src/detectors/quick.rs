@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use super::DetectCtx;
 use crate::format::{age_phrase, format_bytes};
+use crate::i18n::{tr, trf};
 use crate::platform::{self, eq_component};
 use crate::safety::protected_paths;
 use crate::scan::measure::Candidate;
@@ -122,17 +123,17 @@ pub fn downloads(ctx: &DetectCtx) -> (Vec<Candidate>, HashSet<NodeId>) {
         let name = n.name.to_string_lossy().into_owned();
         if PARTIAL_EXTS.contains(&ext.as_str()) {
             if age >= th.partial_days as i64 {
-                let mut c = base("downloads.partial", name, id, "Unfinished downloads");
+                let mut c = base("downloads.partial", name, id, &tr("Unfinished downloads"));
                 c.tier = Tier::Safe;
                 c.disposal = Disposal::Delete;
                 c.comes_back = ComesBack::OnDemand;
-                c.why = format!(
-                    "A download that never finished. It was last written {}.",
-                    age_phrase(ctx.now, n.modified)
+                c.why = trf(
+                    "A download that never finished. It was last written {when}.",
+                    &[("when", &age_phrase(ctx.now, n.modified))],
                 );
-                c.if_removed =
-                    "The unfinished file is gone. Start the download again if you still need it."
-                        .into();
+                c.if_removed = tr(
+                    "The unfinished file is gone. Start the download again if you still need it.",
+                );
                 c.note = Some(age_phrase(ctx.now, n.modified));
                 claimed.insert(id);
                 out.push(c);
@@ -140,27 +141,32 @@ pub fn downloads(ctx: &DetectCtx) -> (Vec<Candidate>, HashSet<NodeId>) {
         } else if INSTALLER_EXTS.contains(&ext.as_str()) {
             if age >= th.installer_days as i64 {
                 let installed = installed_match(&name, &ctx.installed);
-                let mut c = base("downloads.installers", name.clone(), id, "Installers");
+                let mut c = base("downloads.installers", name.clone(), id, &tr("Installers"));
                 c.tier = Tier::Review;
                 c.disposal = Disposal::Recycle;
                 c.comes_back = ComesBack::OnDemand;
-                c.why = format!(
-                    "An installer you downloaded {}. Once an app is installed, the installer is rarely needed.",
-                    age_phrase(ctx.now, n.modified)
+                c.why = trf(
+                    "An installer you downloaded {when}. Once an app is installed, the installer is rarely needed.",
+                    &[("when", &age_phrase(ctx.now, n.modified))],
                 );
-                c.if_removed = "It goes to the Recycle Bin. Download it again from the publisher if you need to reinstall.".into();
+                c.if_removed = tr(
+                    "It goes to the Recycle Bin. Download it again from the publisher if you need to reinstall.",
+                );
                 c.note = Some(age_phrase(ctx.now, n.modified));
                 if let Some((app, version)) = installed {
                     let v = version
                         .as_deref()
                         .map(|v| format!(" {v}"))
                         .unwrap_or_default();
-                    c.why = format!(
-                        "An installer you downloaded {}. {app}{v} is already installed on this PC, so you likely don't need it.",
-                        age_phrase(ctx.now, n.modified)
+                    c.why = trf(
+                        "An installer you downloaded {when}. {app} is already installed on this PC, so you likely don't need it.",
+                        &[
+                            ("when", &age_phrase(ctx.now, n.modified)),
+                            ("app", &format!("{app}{v}")),
+                        ],
                     );
-                    c.note = Some(format!("Installed: {app}"));
-                    c.facts.push(("Installed app".into(), format!("{app}{v}")));
+                    c.note = Some(trf("Installed: {app}", &[("app", app)]));
+                    c.facts.push((tr("Installed app"), format!("{app}{v}")));
                 }
                 claimed.insert(id);
                 out.push(c);
@@ -184,17 +190,18 @@ pub fn downloads(ctx: &DetectCtx) -> (Vec<Candidate>, HashSet<NodeId>) {
                     "downloads.extracted-archives",
                     name,
                     id,
-                    "Archives already extracted",
+                    &tr("Archives already extracted"),
                 );
                 c.tier = Tier::Review;
                 c.disposal = Disposal::Recycle;
                 c.comes_back = ComesBack::No;
-                c.why = format!(
-                    "You already extracted this archive into the “{folder}” folder next to it."
+                c.why = trf(
+                    "You already extracted this archive into the “{folder}” folder next to it.",
+                    &[("folder", &folder)],
                 );
                 c.if_removed =
-                    "The extracted folder stays. The archive goes to the Recycle Bin.".into();
-                c.note = Some(format!("Extracted to {folder}"));
+                    tr("The extracted folder stays. The archive goes to the Recycle Bin.");
+                c.note = Some(trf("Extracted to {folder}", &[("folder", &folder)]));
                 claimed.insert(id);
                 out.push(c);
             }
@@ -217,17 +224,20 @@ pub fn downloads(ctx: &DetectCtx) -> (Vec<Candidate>, HashSet<NodeId>) {
             continue;
         }
         let name = n.name.to_string_lossy().into_owned();
-        let mut c = base("downloads.old", name, id, "Old downloads");
+        let mut c = base("downloads.old", name, id, &tr("Old downloads"));
         c.tier = Tier::Review;
         c.disposal = Disposal::Recycle;
         c.comes_back = ComesBack::No;
-        c.why = format!(
-            "Downloaded and not changed for {}.",
-            crate::format::duration_phrase(ctx.now - newest)
+        c.why = trf(
+            "Downloaded and not changed for {age}.",
+            &[("age", &crate::format::duration_phrase(ctx.now - newest))],
         );
         c.if_removed =
-            "It goes to the Recycle Bin, so you can restore it until the bin is emptied.".into();
-        c.note = Some(format!("Changed {}", age_phrase(ctx.now, newest)));
+            tr("It goes to the Recycle Bin, so you can restore it until the bin is emptied.");
+        c.note = Some(trf(
+            "Changed {when}",
+            &[("when", &age_phrase(ctx.now, newest))],
+        ));
         old.push((id, c));
     }
     for (id, c) in old {
@@ -283,14 +293,19 @@ pub fn large_files(ctx: &DetectCtx, claimed: &HashSet<NodeId>) -> Vec<Candidate>
         c.tier = Tier::Review;
         c.disposal = Disposal::Recycle;
         c.comes_back = ComesBack::No;
-        c.why = format!(
-            "A {} file you haven't changed for {}.",
-            format_bytes(n.allocated.max(n.logical)),
-            crate::format::duration_phrase(ctx.now - n.modified)
+        c.why = trf(
+            "A {size} file you haven't changed for {age}.",
+            &[
+                ("size", &format_bytes(n.allocated.max(n.logical))),
+                ("age", &crate::format::duration_phrase(ctx.now - n.modified)),
+            ],
         );
         c.if_removed =
-            "It goes to the Recycle Bin, so you can restore it until the bin is emptied.".into();
-        c.note = Some(format!("Changed {}", age_phrase(ctx.now, n.modified)));
+            tr("It goes to the Recycle Bin, so you can restore it until the bin is emptied.");
+        c.note = Some(trf(
+            "Changed {when}",
+            &[("when", &age_phrase(ctx.now, n.modified))],
+        ));
         out.push(c);
     }
     out
@@ -352,9 +367,9 @@ pub fn empty_folders(ctx: &DetectCtx) -> Vec<Candidate> {
             c.tier = Tier::Safe;
             c.disposal = Disposal::Delete;
             c.comes_back = ComesBack::No;
-            c.why = "This folder (and any folders inside it) contains no files.".into();
-            c.if_removed = "Nothing is lost: the folder is empty.".into();
-            c.note = Some("Empty".into());
+            c.why = tr("This folder (and any folders inside it) contains no files.");
+            c.if_removed = tr("Nothing is lost: the folder is empty.");
+            c.note = Some(tr("Empty"));
             c
         })
         .collect()
@@ -374,9 +389,9 @@ pub fn recycle_bin(drives: &[PathBuf]) -> Vec<Candidate> {
         let mut c = Candidate::new(
             "windows.recycle-bin",
             CategoryId::RecycleBin,
-            format!("Recycle Bin on {letter}"),
+            trf("Recycle Bin on {drive}", &[("drive", &letter)]),
         );
-        c.source = "Recycle Bin".into();
+        c.source = tr("Recycle Bin");
         c.source_path = Some(d.clone());
         c.fixed_size = Some((bytes, items));
         c.tier = Tier::Safe;
@@ -384,12 +399,13 @@ pub fn recycle_bin(drives: &[PathBuf]) -> Vec<Candidate> {
             drive: d.to_string_lossy().into_owned(),
         };
         c.comes_back = ComesBack::No;
-        c.why = format!(
-            "Files you already deleted. They keep using space on {letter} until the Recycle Bin is emptied."
+        c.why = trf(
+            "Files you already deleted. They keep using space on {drive} until the Recycle Bin is emptied.",
+            &[("drive", &letter)],
         );
         c.if_removed =
-            "They're gone for good; you can't restore them from the Recycle Bin anymore.".into();
-        c.note = Some(format!("{items} items"));
+            tr("They're gone for good; you can't restore them from the Recycle Bin anymore.");
+        c.note = Some(trf("{n} items", &[("n", &items.to_string())]));
         out.push(c);
     }
     out

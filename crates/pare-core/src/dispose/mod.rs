@@ -1,6 +1,7 @@
 //! Disposal: Recycle Bin, direct delete (rebuildable data only), tool commands, and the op log.
 
 pub mod executor;
+pub mod guide;
 pub mod oplog;
 pub mod recycle;
 

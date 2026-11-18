@@ -1,14 +1,15 @@
 import { Check, Clock, FolderSearch, RefreshCw, Zap } from "lucide-react";
 import { Button, cx } from "@pare/ui";
 import { ProgressRing } from "../components/ProgressRing";
-import { formatBytes } from "../lib/format";
+import { formatBytes, formatCount } from "../lib/format";
+import { t, useT } from "../i18n";
 import { useScan } from "../state/scan";
 import { useApp } from "../state/app";
 
 function compact(n: number): string {
-  if (n >= 1e6) return `${(n / 1e6).toFixed(2).replace(/\.?0+$/, "")}M`;
-  if (n >= 1e4) return `${Math.round(n / 1e3)}K`;
-  return n.toLocaleString("en-US");
+  if (n >= 1e6) return t("scanning.millions", { n: Number((n / 1e6).toFixed(2)) });
+  if (n >= 1e4) return t("scanning.thousands", { n: Math.round(n / 1e3) });
+  return formatCount(n);
 }
 
 function clock(ms: number): string {
@@ -17,13 +18,14 @@ function clock(ms: number): string {
 }
 
 export function Scanning() {
+  const { t, tp } = useT();
   const scan = useScan();
   const go = useApp((s) => s.go);
   const p = scan.progress;
   const fraction = p?.fraction ?? 0;
   const phaseNo = !p || p.phase === "enumerating" || p.phase === "starting" ? 1 : 2;
   const pcScope = scan.scope.includes("pc");
-  const title = pcScope ? "Scanning This PC" : `Scanning ${scan.scope.length === 1 ? "1 folder" : `${scan.scope.length} folders`}`;
+  const title = pcScope ? t("scanning.title.pc") : tp("scanning.title.folders", scan.scope.length);
   // Fast mode: whole drives, elevated (the scanner reads the NTFS file table directly).
   const fast = pcScope && (useApp.getState().info?.elevated ?? false);
   const current = p?.current ? p.current.slice(0, 3) : "";
@@ -32,8 +34,8 @@ export function Scanning() {
     <div className="mx-auto flex min-h-full max-w-[560px] flex-col items-center gap-6 px-8 py-10">
       <ProgressRing
         value={fraction}
-        label="Scan progress"
-        caption={`${current ? `${current.replace(/\\$/, "")} · ` : ""}${phaseNo} of 2 phases`}
+        label={t("scanning.progress")}
+        caption={`${current ? `${current.replace(/\\$/, "")} · ` : ""}${t("scanning.phases", { phase: phaseNo, total: 2 })}`}
       />
       <div className="flex flex-col items-center gap-1.5 text-center">
         <h1 className="text-heading-h2">{title}</h1>
@@ -41,12 +43,12 @@ export function Scanning() {
           {fast ? (
             <>
               <Zap size={16} className="text-accent-default" aria-hidden="true" />
-              Fast mode — reading the NTFS file table directly
+              {t("scanning.fastMode")}
             </>
           ) : (
             <>
               <FolderSearch size={16} className="text-accent-default" aria-hidden="true" />
-              {phaseNo === 1 ? "Reading your folders. Nothing is changed while Pare scans." : "Checking what's safe to remove"}
+              {phaseNo === 1 ? t("scanning.reading") : t("scanning.checking")}
             </>
           )}
         </p>
@@ -54,9 +56,9 @@ export function Scanning() {
 
       <dl className="grid grid-cols-3 divide-x divide-border-default rounded-lg border border-border-default bg-bg-surface">
         {[
-          [compact(p?.files ?? 0), "files read"],
-          [formatBytes(p?.foundBytes ?? 0), "found so far"],
-          [clock(p?.elapsedMs ?? 0), "elapsed"],
+          [compact(p?.files ?? 0), t("scanning.filesRead")],
+          [formatBytes(p?.foundBytes ?? 0), t("scanning.foundSoFar")],
+          [clock(p?.elapsedMs ?? 0), t("scanning.elapsed")],
         ].map(([v, l]) => (
           <div key={l} className="flex flex-col items-center px-7 py-3">
             <dd className="tabular text-heading-h3 text-text-primary">{v}</dd>
@@ -66,7 +68,7 @@ export function Scanning() {
       </dl>
 
       {scan.detectors.length > 0 && (
-        <ul className="w-full overflow-hidden rounded-lg border border-border-default bg-bg-surface" aria-label="Checks">
+        <ul className="w-full overflow-hidden rounded-lg border border-border-default bg-bg-surface" aria-label={t("scanning.checks")}>
           {scan.detectors.map((d) => (
             <li key={d.id} className="flex items-center gap-3 border-b border-border-default px-4 py-2.5 last:border-b-0">
               <span
@@ -89,7 +91,7 @@ export function Scanning() {
                   d.state === "running" ? "text-accent-default" : d.state === "waiting" ? "text-text-tertiary" : "text-text-secondary",
                 )}
               >
-                {d.state === "done" ? formatBytes(d.bytes) : d.state === "running" ? "Checking…" : "Waiting"}
+                {d.state === "done" ? formatBytes(d.bytes) : d.state === "running" ? t("common.checking") : t("scanning.waiting")}
               </span>
             </li>
           ))}
@@ -98,10 +100,10 @@ export function Scanning() {
 
       <div className="flex gap-3">
         <Button variant="secondary" onClick={() => void scan.cancel()} disabled={!scan.running}>
-          Cancel scan
+          {t("scanning.cancel")}
         </Button>
         <Button variant="ghost" onClick={() => go({ name: "clean" })}>
-          See results so far
+          {t("scanning.seeResults")}
         </Button>
       </div>
       {scan.error && <p className="text-body-s text-keep-fg">{scan.error}</p>}

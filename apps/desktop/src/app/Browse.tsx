@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, File, Folder, FolderOpen, HardDrive, Link2, Lock, ShieldCheck, Trash2, Zap } from "lucide-react";
 import { Badge, Button, Chip, cx, focusRing } from "@pare/ui";
 import { api } from "../lib/ipc";
-import { ago, formatBytes, formatCount, protectExplain } from "../lib/format";
+import { ago, formatBytes, protectExplain } from "../lib/format";
+import { useT } from "../i18n";
 import { squarify } from "../lib/treemap";
 import type { BrowseChild, BrowseView, FileKind, Finding } from "../lib/types";
 import { useApp } from "../state/app";
@@ -44,6 +45,7 @@ interface Cell extends BrowseChild {
 }
 
 function Treemap({ items, onOpen, onPick }: { items: BrowseChild[]; onOpen: (c: BrowseChild) => void; onPick: (c: BrowseChild) => void }) {
+  const { t, tp, locale } = useT();
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
@@ -96,7 +98,7 @@ function Treemap({ items, onOpen, onPick }: { items: BrowseChild[]; onOpen: (c: 
       ctx.lineWidth = 2;
       ctx.strokeRect(hover.x + 1, hover.y + 1, hover.w - 2, hover.h - 2);
     }
-  }, [cells, size, hover, theme]);
+  }, [cells, size, hover, theme, locale]);
 
   const at = (e: React.MouseEvent) => {
     const r = canvas.current!.getBoundingClientRect();
@@ -110,7 +112,7 @@ function Treemap({ items, onOpen, onPick }: { items: BrowseChild[]; onOpen: (c: 
       <canvas
         ref={canvas}
         role="img"
-        aria-label={`Storage map: ${items.slice(0, 5).map((c) => `${c.name} ${formatBytes(c.bytes)}`).join(", ")}`}
+        aria-label={t("browse.mapLabel", { list: items.slice(0, 5).map((c) => `${c.name} ${formatBytes(c.bytes)}`).join(", ") })}
         style={{ width: size.w, height: size.h }}
         onMouseMove={(e) => setHover(at(e))}
         onMouseLeave={() => setHover(null)}
@@ -125,7 +127,7 @@ function Treemap({ items, onOpen, onPick }: { items: BrowseChild[]; onOpen: (c: 
       {hover && (
         <div className="pointer-events-none absolute left-3 top-3 rounded-md bg-bg-inverse px-3 py-1.5 text-caption text-on-inverse-text shadow-floating">
           {hover.name} · {formatBytes(hover.bytes)}
-          {hover.isDir ? ` · ${formatCount(hover.files)} files` : ""}
+          {hover.isDir ? ` · ${tp("count.files", hover.files)}` : ""}
         </div>
       )}
     </div>
@@ -133,6 +135,7 @@ function Treemap({ items, onOpen, onPick }: { items: BrowseChild[]; onOpen: (c: 
 }
 
 export function Browse() {
+  const { t, tp } = useT();
   const info = useApp((s) => s.info);
   const go = useApp((s) => s.go);
   const scan = useScan();
@@ -185,13 +188,14 @@ export function Browse() {
     return out;
   }, [view]);
 
+  const foldedName = tp("browse.smallerFiles", view?.foldedFiles ?? 0);
   const items: BrowseChild[] = useMemo(() => {
     if (!view) return [];
     const list = [...view.children];
     if (view.foldedBytes > 0)
-      list.push({ name: `${formatCount(view.foldedFiles)} smaller files`, path: view.path, bytes: view.foldedBytes, files: view.foldedFiles, isDir: false, kind: "other", leaf: "excluded", modified: 0 });
+      list.push({ name: foldedName, path: view.path, bytes: view.foldedBytes, files: view.foldedFiles, isDir: false, kind: "other", leaf: "excluded", modified: 0 });
     return list;
-  }, [view]);
+  }, [view, foldedName]);
 
   const fastNote = view && view.fastDrives.length > 0;
   const showElevate = info && !info.elevated && info.platform === "windows";
@@ -202,10 +206,8 @@ export function Browse() {
         <span className="flex size-14 items-center justify-center rounded-xl bg-bg-subtle text-text-secondary">
           <HardDrive size={26} aria-hidden="true" />
         </span>
-        <h1 className="text-heading-h2">See where your space goes</h1>
-        <p className="max-w-[460px] text-body-m text-text-secondary">
-          {error ? "Browse shows the storage map of your last scan. Scan this PC to build it." : "Loading…"}
-        </p>
+        <h1 className="text-heading-h2">{t("browse.empty.title")}</h1>
+        <p className="max-w-[460px] text-body-m text-text-secondary">{error ? t("browse.empty.body") : t("common.loading")}</p>
         <Button
           icon={HardDrive}
           onClick={() => {
@@ -213,7 +215,7 @@ export function Browse() {
             void scan.start();
           }}
         >
-          Scan this PC
+          {t("common.scanThisPc")}
         </Button>
       </div>
     );
@@ -223,22 +225,22 @@ export function Browse() {
     <div className="flex h-full min-h-0 flex-col gap-4 pb-6 pl-4 pr-8 pt-6">
       <header className="flex flex-wrap items-center gap-3">
         <div className="mr-auto min-w-0">
-          <h1 className="text-heading-h1">Browse</h1>
+          <h1 className="text-heading-h1">{t("browse.title")}</h1>
           <p className="text-body-s text-text-secondary">
-            {formatBytes(view.bytes)} in {formatCount(view.files)} files · scanned {ago(view.scanned)}
+            {t("browse.summary", { size: formatBytes(view.bytes), files: tp("count.files", view.files), ago: ago(view.scanned) })}
           </p>
         </div>
         {fastNote ? (
           <Badge tone="accent">
-            <Zap size={12} aria-hidden="true" /> Fast mode
+            <Zap size={12} aria-hidden="true" /> {t("browse.fastMode")}
           </Badge>
         ) : showElevate ? (
           <Button variant="ghost" icon={Zap} onClick={() => void api.relaunchElevated().catch((e) => setError(String(e)))}>
-            Restart as administrator for fast mode
+            {t("browse.elevate")}
           </Button>
         ) : null}
         {view.roots.length > 1 && (
-          <div className="flex gap-2" role="group" aria-label="Drives">
+          <div className="flex gap-2" role="group" aria-label={t("browse.drives")}>
             {view.roots.map((r) => (
               <Chip key={r.path} icon={HardDrive} selected={view.path.toLowerCase().startsWith(r.path.toLowerCase())} onClick={() => void open(r.path)}>
                 {r.name}
@@ -249,7 +251,7 @@ export function Browse() {
       </header>
 
       {view.kinds.length > 0 && (
-        <div className="flex flex-wrap gap-2" role="group" aria-label="File types">
+        <div className="flex flex-wrap gap-2" role="group" aria-label={t("browse.fileTypes")}>
           {view.kinds
             .slice()
             .sort((a, b) => b.bytes - a.bytes)
@@ -261,7 +263,7 @@ export function Browse() {
         </div>
       )}
 
-      <nav aria-label="Folder path" className="flex flex-wrap items-center gap-1 text-body-s">
+      <nav aria-label={t("browse.path")} className="flex flex-wrap items-center gap-1 text-body-s">
         {crumbs.map((c, i) => (
           <span key={c.path} className="flex items-center gap-1">
             {i > 0 && <ChevronRight size={14} className="text-text-tertiary" aria-hidden="true" />}
@@ -275,7 +277,7 @@ export function Browse() {
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 min-[1100px]:grid-cols-[minmax(0,1fr)_340px]">
         <Treemap items={kind ? kindFiles : items} onOpen={(c) => void open(c.path)} onPick={(c) => void pick(c)} />
         <div className="min-h-0 overflow-y-auto rounded-lg border border-border-default bg-bg-surface">
-          <ul aria-label={kind ? "Largest files of this type" : "Contents"}>
+          <ul aria-label={kind ? t("browse.largestOfType") : t("browse.contents")}>
             {(kind ? kindFiles : items).map((c) => {
               const Icon = c.leaf === "link" ? Link2 : c.leaf === "excluded" || c.leaf === "error" ? Lock : c.isDir ? Folder : File;
               const pct = view.bytes ? (c.bytes / view.bytes) * 100 : 0;
@@ -301,7 +303,7 @@ export function Browse() {
             })}
           </ul>
           {view.foldedBytes > 0 && !kind && (
-            <p className="px-3 py-2 text-caption text-text-tertiary">Files under 10 MB are counted, not listed, in whole-drive scans.</p>
+            <p className="px-3 py-2 text-caption text-text-tertiary">{t("browse.folded")}</p>
           )}
         </div>
       </div>
@@ -316,7 +318,7 @@ export function Browse() {
           picked && (
             <>
               <Button variant="secondary" icon={FolderOpen} onClick={() => void api.openInExplorer(picked.child.path)}>
-                Open in Explorer
+                {t("common.openInExplorer")}
               </Button>
               {picked.finding && picked.finding.tier.kind !== "protected" && (
                 <Button
@@ -327,7 +329,7 @@ export function Browse() {
                     void run([id]);
                   }}
                 >
-                  Move to Recycle Bin
+                  {t("common.moveToRecycleBin")}
                 </Button>
               )}
             </>
@@ -338,23 +340,23 @@ export function Browse() {
           <p className="flex items-start gap-2 text-body-s text-text-secondary">
             <ShieldCheck size={16} className="mt-0.5 text-safe-fg" aria-hidden="true" />
             {picked.child.leaf === "link"
-              ? "A link to another folder. Pare never follows or removes links from Browse."
+              ? t("browse.leaf.link")
               : picked.child.leaf === "excluded"
-                ? "A system or protected location. Pare shows its size but never touches it."
-                : "Pare couldn't read this folder."}
+                ? t("browse.leaf.excluded")
+                : t("browse.leaf.error")}
           </p>
         )}
         {picked?.finding?.tier.kind === "protected" && (
-          <p className="text-body-s text-keep-fg">Kept: {picked.finding.tier.detail ?? protectExplain(picked.finding.tier.reason)}.</p>
+          <p className="text-body-s text-keep-fg">
+            {t("common.kept", { reason: picked.finding.tier.detail ?? protectExplain(picked.finding.tier.reason) })}
+          </p>
         )}
         {picked?.finding && picked.finding.tier.kind !== "protected" && (
-          <p className="text-body-s text-text-secondary">
-            It goes to the Recycle Bin, so you can restore it from History. Pare checked it isn't in use, recently changed or a protected location.
-          </p>
+          <p className="text-body-s text-text-secondary">{t("browse.recycleNote")}</p>
         )}
         <div className="mt-4">
           <Button variant="ghost" onClick={() => go({ name: "clean" })}>
-            See suggestions instead
+            {t("browse.seeSuggestions")}
           </Button>
         </div>
       </Sheet>

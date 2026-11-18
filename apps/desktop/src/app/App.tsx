@@ -14,6 +14,8 @@ import { Projects } from "./Projects";
 import { Browse } from "./Browse";
 import { Onboarding } from "./Onboarding";
 import { checkForUpdate, dueForCheck, markChecked, type UpdateInfo } from "../lib/updates";
+import { formatBytes } from "../lib/format";
+import { useT } from "../i18n";
 import { Button } from "@pare/ui";
 
 function sidebarScreen(s: Screen): SidebarScreen {
@@ -29,6 +31,8 @@ function sidebarScreen(s: Screen): SidebarScreen {
 }
 
 export function App() {
+  // Subscribing here re-renders the whole tree when the language changes.
+  const { t } = useT();
   const screen = useApp((s) => s.screen);
   const ready = useApp((s) => s.ready);
   const drives = useApp((s) => s.drives);
@@ -68,6 +72,7 @@ export function App() {
   return (
     <div className="flex h-full flex-col bg-bg-app">
       <TitleBar
+        labels={{ minimize: t("window.minimize"), maximize: t("window.maximize"), restore: t("window.restore"), close: t("window.close") }}
         maximized={maximized}
         onMinimize={() => void windowControls.minimize()}
         onMaximize={() => void windowControls.toggleMaximize()}
@@ -76,7 +81,25 @@ export function App() {
       <div className="flex min-h-0 flex-1">
         <Sidebar
           active={sidebarScreen(screen)}
-          drive={drive ? { label: driveLabel(drive), usedBytes: drive.total - drive.free, totalBytes: drive.total } : undefined}
+          navLabel={t("nav.main")}
+          labels={{
+            clean: t("nav.clean"),
+            browse: t("nav.browse"),
+            projects: t("nav.projects"),
+            history: t("nav.history"),
+            settings: t("nav.settings"),
+          }}
+          drive={
+            drive
+              ? {
+                  label: driveLabel(drive),
+                  usedBytes: drive.total - drive.free,
+                  totalBytes: drive.total,
+                  caption: t("nav.driveUsed", { used: formatBytes(drive.total - drive.free), total: formatBytes(drive.total) }),
+                  meterLabel: t("nav.driveMeter", { drive: driveLabel(drive) }),
+                }
+              : undefined
+          }
           onNavigate={(s) => {
             if (s === "clean") go(useScan.getState().running ? { name: "scanning" } : { name: "clean" });
             else go({ name: s });
@@ -85,11 +108,11 @@ export function App() {
         <main id="main" className="relative flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden" tabIndex={-1}>
           {update && (
             <div role="status" className="flex items-center gap-3 border-b border-border-default bg-accent-subtle px-6 py-2 text-body-s text-accent-on-subtle">
-              <span className="flex-1">Pare {update.version} is available.</span>
+              <span className="flex-1">{t("app.updateAvailable", { version: update.version })}</span>
               <Button variant="ghost" onClick={() => setUpdate(null)}>
-                Later
+                {t("app.later")}
               </Button>
-              <Button onClick={() => void update.install()}>Install and restart</Button>
+              <Button onClick={() => void update.install()}>{t("app.installRestart")}</Button>
             </div>
           )}
           <div className="min-h-0 flex-1">{!ready ? null : <ScreenView screen={screen} />}</div>

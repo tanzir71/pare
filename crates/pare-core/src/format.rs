@@ -36,40 +36,36 @@ pub fn format_count(n: u64) -> String {
 
 /// "3 days", "8 months", "2 years"
 pub fn duration_phrase(ms: i64) -> String {
+    use crate::i18n::{tr, trf};
     let days = (ms / MS_PER_DAY).max(0);
-    let plural = |n: i64, unit: &str| {
-        if n == 1 {
-            format!("1 {unit}")
-        } else {
-            format!("{n} {unit}s")
-        }
-    };
-    if days < 1 {
-        let hours = (ms / 3_600_000).max(0);
-        if hours < 1 {
-            return "less than an hour".into();
-        }
-        return plural(hours, "hour");
+    let hours = (ms / 3_600_000).max(0);
+    let months = (days as f64 / 30.44).round() as i64;
+    let years = (days as f64 / 365.25).floor() as i64;
+    let n = |v: i64| v.to_string();
+    match () {
+        _ if days < 1 && hours < 1 => tr("less than an hour"),
+        _ if days < 1 && hours == 1 => tr("1 hour"),
+        _ if days < 1 => trf("{n} hours", &[("n", &n(hours))]),
+        _ if days == 1 => tr("1 day"),
+        _ if days < 45 => trf("{n} days", &[("n", &n(days))]),
+        _ if days < 365 && months == 1 => tr("1 month"),
+        _ if days < 365 => trf("{n} months", &[("n", &n(months))]),
+        _ if years == 1 => tr("1 year"),
+        _ => trf("{n} years", &[("n", &n(years))]),
     }
-    if days < 45 {
-        return plural(days, "day");
-    }
-    if days < 365 {
-        return plural((days as f64 / 30.44).round() as i64, "month");
-    }
-    plural((days as f64 / 365.25).floor() as i64, "year")
 }
 
 /// "9 days ago", "today", "8 months ago"
 pub fn age_phrase(now: Timestamp, then: Timestamp) -> String {
+    use crate::i18n::{tr, trf};
     let d = now - then;
     if (0..MS_PER_DAY).contains(&d) {
-        return "today".into();
+        return tr("today");
     }
     if d < 0 {
-        return "just now".into();
+        return tr("just now");
     }
-    format!("{} ago", duration_phrase(d))
+    trf("{age} ago", &[("age", &duration_phrase(d))])
 }
 
 #[cfg(test)]

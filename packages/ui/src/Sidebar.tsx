@@ -27,6 +27,10 @@ export interface SidebarDrive {
   label: string;
   usedBytes: number;
   totalBytes: number;
+  /** Caption under the meter. Default "{used} of {total} used". */
+  caption?: string;
+  /** Accessible name of the meter. Default "{label} used space". */
+  meterLabel?: string;
 }
 
 export interface SidebarProps extends Omit<HTMLAttributes<HTMLElement>, "children"> {
@@ -37,6 +41,10 @@ export interface SidebarProps extends Omit<HTMLAttributes<HTMLElement>, "childre
   onNavigate?: (screen: SidebarScreen) => void;
   /** Render nav items as links instead of buttons. */
   hrefs?: Partial<Record<SidebarScreen, string>>;
+  /** Nav item labels. Defaults: "Clean", "Browse", "Projects", "History", "Settings". */
+  labels?: Partial<Record<SidebarScreen, string>>;
+  /** Accessible name of the main nav. Default "Main". */
+  navLabel?: string;
 }
 
 /** App sidebar (Figma `Sidebar` 9-134): 240 wide, lockup, main nav, drive meter and Settings at the bottom. */
@@ -45,10 +53,13 @@ export function Sidebar({
   drive,
   onNavigate,
   hrefs,
+  labels,
+  navLabel = "Main",
   className,
   ...props
 }: SidebarProps) {
-  const item = (id: SidebarScreen, label: string, icon: LucideIcon) => {
+  const item = (id: SidebarScreen, fallback: string, icon: LucideIcon) => {
+    const label = labels?.[id] ?? fallback;
     const href = hrefs?.[id];
     return href !== undefined ? (
       <NavItem icon={icon} active={active === id} href={href}>
@@ -75,7 +86,7 @@ export function Sidebar({
       <div className="pb-5 pl-2.5 pt-2">
         <Lockup markSize={32} />
       </div>
-      <nav aria-label="Main" className="flex flex-col gap-1">
+      <nav aria-label={navLabel} className="flex flex-col gap-1">
         {MAIN_ITEMS.map(({ id, label, icon }) => (
           <div key={id}>{item(id, label, icon)}</div>
         ))}
@@ -89,7 +100,7 @@ export function Sidebar({
           </div>
           <div
             role="meter"
-            aria-label={`${drive.label} used space`}
+            aria-label={drive.meterLabel ?? `${drive.label} used space`}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(usedPct)}
@@ -98,7 +109,7 @@ export function Sidebar({
             <div className="h-full bg-accent-default" style={{ width: `${usedPct}%` }} />
           </div>
           <span className="text-caption text-text-secondary">
-            {formatBytes(drive.usedBytes)} of {formatBytes(drive.totalBytes)} used
+            {drive.caption ?? `${formatBytes(drive.usedBytes)} of ${formatBytes(drive.totalBytes)} used`}
           </span>
         </div>
       ) : null}

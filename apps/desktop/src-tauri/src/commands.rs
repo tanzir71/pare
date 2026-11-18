@@ -150,7 +150,10 @@ fn summary_of(id: u64, out: &ScanOutput, detectors: &[DetectorStatus]) -> ScanSu
     }
 }
 
-fn config_from(settings: &Settings, rules: Arc<pare_core::rules::RuleSet>) -> ScanConfig {
+pub(crate) fn config_from(
+    settings: &Settings,
+    rules: Arc<pare_core::rules::RuleSet>,
+) -> ScanConfig {
     ScanConfig {
         thresholds: settings.thresholds.clone(),
         exclusions: settings.exclusions.clone(),
@@ -260,6 +263,17 @@ pub fn scan_start(
         };
         let mut out = scan(&request, &cfg, &env, &progress, &cancel, &on_event);
         apply_disposal_preference(&mut out, &settings);
+        // A whole-PC scan ran every rule everywhere: a free growth snapshot (M8).
+        if settings.monitor.enabled && request.whole_drives && !out.result.cancelled {
+            if let Some(rules) = &cfg.rules {
+                let snap = pare_core::monitor::growth::snapshot(
+                    &out.result.findings,
+                    rules,
+                    out.result.started,
+                );
+                let _ = pare_core::monitor::growth::record(&env, snap);
+            }
+        }
         done.store(true, Ordering::Relaxed);
         let _ = app.emit(
             "scan://progress",
@@ -547,12 +561,86 @@ pub fn settings_get(state: State<'_, AppState>) -> CmdResult<Settings> {
 }
 
 #[tauri::command]
-pub fn settings_set(state: State<'_, AppState>, patch: serde_json::Value) -> CmdResult<Settings> {
-    let mut s = state.settings.lock().map_err(err)?;
-    let next = s.patch(patch)?;
-    next.save(&state.env).map_err(err)?;
-    *s = next.clone();
+pub fn settings_set(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    patch: serde_json::Value,
+) -> CmdResult<Settings> {
+    let next = {
+        let mut s = state.settings.lock().map_err(err)?;
+        let mut next = s.patch(patch)?;
+        // Only rules that qualify can be scheduled, whatever the webview sends.
+        next.schedules.retain(|x| {
+            x.every_days > 0 && pare_core::monitor::schedule::check(&state.rules, &x.rule).is_ok()
+        });
+        next.save(&state.env).map_err(err)?;
+        *s = next.clone();
+        next
+    };
+    crate::monitor::sync_tray(&app);
     Ok(next)
+}
+
+/// The UI's language (M8 localization): text Pare produces from now on (the next scan, the
+/// notification area menu, notifications) uses it.
+#[tauri::command]
+pub fn locale_set(app: AppHandle, lang: String) {
+    pare_core::i18n::set_language(&lang);
+    crate::monitor::refresh_tray(&app);
+}
+
+/// Things that grew a lot in about a week (M8). Empty until the monitor has a day of history.
+#[tauri::command]
+pub fn monitor_alerts(state: State<'_, AppState>) -> CmdResult<Vec<pare_core::monitor::Growth>> {
+    let settings = state.settings.lock().map_err(err)?.clone();
+    Ok(pare_core::monitor::current_alerts(&state.env, &settings))
+}
+
+/// Rules the user may put on a schedule: built-in, verified, Safe.
+#[tauri::command]
+pub fn schedulable_rules(
+    state: State<'_, AppState>,
+) -> Vec<pare_core::monitor::schedule::SchedulableRule> {
+    pare_core::monitor::schedule::schedulable_rules(&state.rules)
+}
+
+/// Run one step of a guide (Docker/WSL compaction, Windows Update cleanup) on the user's
+/// click. The finding comes from the last scan; the webview only names it.
+#[tauri::command]
+pub async fn guide_run(
+    app: AppHandle,
+    id: String,
+    action: usize,
+) -> CmdResult<pare_core::dispose::guide::ActionReport> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Manager;
+        let state = app.state::<AppState>();
+        let finding = {
+            let slot = state.scan.lock().map_err(err)?;
+            slot.output
+                .as_ref()
+                .and_then(|o| o.result.findings.iter().find(|f| f.id == id).cloned())
+                .ok_or("Scan again first: that item isn't in the last scan.")?
+        };
+        if state.cleaning.swap(true, Ordering::SeqCst) {
+            return Err("Wait for the current cleanup to finish.".to_string());
+        }
+        let r = OpLog::open(&state.env.oplog_path())
+            .map_err(|e| format!("Couldn't open the operation log: {e}"))
+            .and_then(|log| {
+                pare_core::dispose::guide::run_action(
+                    &finding,
+                    action,
+                    &state.env,
+                    &log,
+                    platform::is_elevated(),
+                )
+            });
+        state.cleaning.store(false, Ordering::SeqCst);
+        r
+    })
+    .await
+    .map_err(err)?
 }
 
 /// "Always keep this": add an exclusion and protect matching findings right away.

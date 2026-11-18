@@ -3,7 +3,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowUpDown, Check, ChevronLeft, EyeOff } from "lucide-react";
 import { Button, Checkbox, FileRow, cx, focusRing } from "@pare/ui";
 import { api } from "../lib/ipc";
-import { formatBytes, plural, tierBadge } from "../lib/format";
+import { categoryTitle, formatBytes, formatBytesExact, tierBadge } from "../lib/format";
+import { t, useT, type MessageKey } from "../i18n";
 import {
   defaultSelection,
   groupBySource,
@@ -26,27 +27,21 @@ import { Banner } from "../components/Banner";
 import { Sheet } from "../components/Sheet";
 import { DetailsPanel } from "./DetailsPanel";
 
-const BANNER: Partial<Record<CategoryId, string>> = {
-  "ai-tools":
-    "Sessions used in the last 24 hours and files an app has open are never suggested. Your own files go to the Recycle Bin; caches that rebuild are removed directly.",
-  "dev-caches":
-    "Package caches re-download when a project needs them. Tools that are running keep their caches until they close.",
-  downloads:
-    "Installers and old downloads go to the Recycle Bin, so you can restore them. Unfinished downloads are removed directly.",
-  "large-files":
-    "Large files go to the Recycle Bin. Anything changed in the last 24 hours or open in an app is never suggested.",
-  "recycle-bin": "Emptying the Recycle Bin removes these files for good. Pare only does it when you ask.",
-  "empty-folders": "Only folders with no files inside are listed. Removing them tidies up but frees almost no space.",
-  junk: "Temporary files older than a day are removed directly; files an app still has open are skipped.",
+const BANNER: Partial<Record<CategoryId, MessageKey>> = {
+  "ai-tools": "review.banner.ai-tools",
+  "dev-caches": "review.banner.dev-caches",
+  downloads: "review.banner.downloads",
+  "large-files": "review.banner.large-files",
+  "recycle-bin": "review.banner.recycle-bin",
+  "empty-folders": "review.banner.empty-folders",
+  junk: "review.banner.junk",
 };
-const DEFAULT_BANNER =
-  "Anything changed in the last 24 hours or open in an app is never suggested. Your own files go to the Recycle Bin; caches that rebuild are removed directly.";
 
-const SORTS: { key: SortKey; label: string }[] = [
-  { key: "size", label: "Size" },
-  { key: "age", label: "Age" },
-  { key: "name", label: "Name" },
-  { key: "tier", label: "Tier" },
+const SORTS: { key: SortKey; label: MessageKey }[] = [
+  { key: "size", label: "review.sort.size" },
+  { key: "age", label: "review.sort.age" },
+  { key: "name", label: "review.sort.name" },
+  { key: "tier", label: "review.sort.tier" },
 ];
 
 type Row = { kind: "group"; source: string; path: string | null; items: Finding[]; bytes: number } | { kind: "item"; f: Finding };
@@ -64,6 +59,7 @@ function useWide(): boolean {
 }
 
 export function Review({ category }: { category: CategoryId }) {
+  const { t, tp } = useT();
   const go = useApp((s) => s.go);
   const settings = useApp((s) => s.settings);
   const updateSettings = useApp((s) => s.updateSettings);
@@ -102,7 +98,7 @@ export function Review({ category }: { category: CategoryId }) {
     [groups],
   );
   const ordered = useMemo(() => groups.flatMap((g) => g.items), [groups]);
-  const t = totals(sel, findings);
+  const sum = totals(sel, findings);
   const open = findings.find((f) => f.id === openId) ?? null;
   const summary = detail?.summary;
   const totalBytes = (summary?.safeBytes ?? 0) + (summary?.reviewBytes ?? 0);
@@ -182,25 +178,25 @@ export function Review({ category }: { category: CategoryId }) {
         <header className="flex items-center gap-3">
           <button
             type="button"
-            aria-label="Back to Clean"
+            aria-label={t("review.back")}
             onClick={() => go({ name: "clean" })}
             className={cx("flex size-9 items-center justify-center rounded-md border border-border-default bg-bg-surface text-text-secondary hover:bg-bg-subtle", focusRing)}
           >
             <ChevronLeft size={18} aria-hidden="true" />
           </button>
           <div className="mr-auto min-w-0">
-            <h1 className="truncate text-heading-h2">{summary?.title ?? "Review"}</h1>
+            <h1 className="truncate text-heading-h2">{summary ? categoryTitle(summary.id) : t("review.title")}</h1>
             <p className="tabular text-body-s text-text-secondary">
-              {formatBytes(totalBytes)} · {plural(summary?.items ?? 0, "item")}
-              {summary && summary.sources > 1 ? ` · ${plural(summary.sources, "source")}` : ""}
+              {formatBytes(totalBytes)} · {tp("count.items", summary?.items ?? 0)}
+              {summary && summary.sources > 1 ? ` · ${tp("count.sources", summary.sources)}` : ""}
             </p>
           </div>
           <Button variant="ghost" icon={Check} onClick={() => setSel((s) => selectAllSafe(s, findings))}>
-            Select all safe
+            {t("review.selectAllSafe")}
           </Button>
           <div className="relative">
             <Button variant="secondary" icon={ArrowUpDown} aria-haspopup="menu" aria-expanded={sortOpen} onClick={() => setSortOpen((o) => !o)}>
-              Sort: {SORTS.find((s) => s.key === sort)?.label}
+              {t("review.sortBy", { label: t(SORTS.find((s) => s.key === sort)?.label ?? "review.sort.size") })}
             </Button>
             {sortOpen && (
               <ul role="menu" className="absolute right-0 z-20 mt-1 w-40 overflow-hidden rounded-md border border-border-default bg-bg-surface py-1 shadow-floating">
@@ -216,7 +212,7 @@ export function Review({ category }: { category: CategoryId }) {
                       }}
                       className={cx("flex w-full items-center justify-between px-3 py-2 text-left text-body-m hover:bg-bg-subtle", focusRing)}
                     >
-                      {s.label}
+                      {t(s.label)}
                       {s.key === sort && <Check size={16} className="text-accent-default" aria-hidden="true" />}
                     </button>
                   </li>
@@ -226,21 +222,24 @@ export function Review({ category }: { category: CategoryId }) {
           </div>
         </header>
 
-        <Banner>{BANNER[category] ?? DEFAULT_BANNER}</Banner>
+        <Banner>{t(BANNER[category] ?? "review.banner.default")}</Banner>
 
         <div
           ref={scrollRef}
           role="grid"
-          aria-label={`${summary?.title ?? "Items"}, ${plural(findings.length, "item")}`}
+          aria-label={t("review.gridLabel", {
+            title: summary ? categoryTitle(summary.id) : t("review.items"),
+            items: tp("count.items", findings.length),
+          })}
           aria-multiselectable="true"
           onKeyDown={onKey}
           onPointerDownCapture={(e) => (shift.current = e.shiftKey)}
           className="min-h-0 flex-1 overflow-y-auto rounded-t-lg border border-b-0 border-border-default bg-bg-surface pb-24"
         >
           {!detail ? (
-            <p className="p-6 text-body-m text-text-secondary">Loading…</p>
+            <p className="p-6 text-body-m text-text-secondary">{t("common.loading")}</p>
           ) : findings.length === 0 ? (
-            <p className="p-6 text-body-m text-text-secondary">Nothing left here.</p>
+            <p className="p-6 text-body-m text-text-secondary">{t("review.empty")}</p>
           ) : (
             <div style={{ height: virt.getTotalSize(), position: "relative" }}>
               {virt.getVirtualItems().map((v) => {
@@ -281,6 +280,9 @@ export function Review({ category }: { category: CategoryId }) {
                           })()}
                           age={r.f.tier.kind === "protected" ? (r.f.tier.detail ?? r.f.note ?? undefined) : (r.f.note ?? undefined)}
                           size={r.f.bytes}
+                          selectLabel={t("common.selectItem", { name: r.f.title })}
+                          formatSize={formatBytes}
+                          formatSizeExact={formatBytesExact}
                           checked={sel.has(r.f.id)}
                           disabled={!isSelectable(r.f)}
                           onCheckedChange={(c) => onRowCheck(r.f, c)}
@@ -307,24 +309,24 @@ export function Review({ category }: { category: CategoryId }) {
                   go({ name: "clean" });
                 }}
               >
-                Hide this suggestion
+                {t("review.hide")}
               </Button>
             </div>
           )}
         </div>
 
-        {t.count > 0 && (
+        {sum.count > 0 && (
           <div
             role="region"
-            aria-label="Selection"
+            aria-label={t("common.selection")}
             className="pare-rise absolute bottom-6 left-1/2 z-10 flex w-max max-w-[calc(100%-48px)] -translate-x-1/2 items-center gap-6 whitespace-nowrap rounded-lg bg-bg-inverse py-2.5 pl-5 pr-2.5 shadow-floating"
           >
             <div className="tabular">
               <p className="text-body-m-strong text-on-inverse-text">
-                {plural(t.count, "selected", "selected")} · {formatBytes(t.bytes)}
+                {tp("count.selected", sum.count)} · {formatBytes(sum.bytes)}
               </p>
               <p className="text-caption text-on-inverse-text-muted">
-                {formatBytes(t.freesNow)} removed now · {formatBytes(t.toRecycleBin)} to Recycle Bin
+                {t("common.selectionSplit", { now: formatBytes(sum.freesNow), bin: formatBytes(sum.toRecycleBin) })}
               </p>
             </div>
             <button
@@ -332,10 +334,10 @@ export function Review({ category }: { category: CategoryId }) {
               onClick={() => setSel(new Set())}
               className={cx("rounded-md px-3 py-2 text-label-m text-on-inverse-text-muted hover:text-on-inverse-text", focusRing)}
             >
-              Clear
+              {t("common.clear")}
             </button>
             <Button onClick={() => freeUp([...sel])} disabled={cleaning}>
-              {cleaning ? "Freeing up…" : `Free up ${formatBytes(t.bytes)}`}
+              {cleaning ? t("common.freeingUp") : t("common.freeUp", { size: formatBytes(sum.bytes) })}
             </Button>
           </div>
         )}
@@ -343,7 +345,7 @@ export function Review({ category }: { category: CategoryId }) {
 
       {open && wide && <aside className="w-[320px] shrink-0 overflow-y-auto border-l border-border-default bg-bg-surface">{panel}</aside>}
       {open && !wide && (
-        <Sheet open placement="side" onClose={() => setOpenId(null)} title="Details" className="[&_h2#sheet-title]:sr-only">
+        <Sheet open placement="side" onClose={() => setOpenId(null)} title={t("review.details")} className="[&_h2#sheet-title]:sr-only">
           {panel}
         </Sheet>
       )}
@@ -351,12 +353,12 @@ export function Review({ category }: { category: CategoryId }) {
       <Sheet
         open={confirm !== null}
         onClose={() => setConfirm(null)}
-        title={`Free up ${formatBytes(confirmTotals?.bytes ?? 0)}?`}
-        description="Some of these are your own files. They go to the Recycle Bin, so you can restore them from History."
+        title={t("common.freeUpQuestion", { size: formatBytes(confirmTotals?.bytes ?? 0) })}
+        description={t("review.confirm.description")}
         footer={
           <>
             <Button variant="secondary" onClick={() => setConfirm(null)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onClick={() => {
@@ -365,7 +367,7 @@ export function Review({ category }: { category: CategoryId }) {
                 void runClean(ids);
               }}
             >
-              Free up {formatBytes(confirmTotals?.bytes ?? 0)}
+              {t("common.freeUp", { size: formatBytes(confirmTotals?.bytes ?? 0) })}
             </Button>
           </>
         }
@@ -373,11 +375,11 @@ export function Review({ category }: { category: CategoryId }) {
         {confirmTotals && (
           <ul className="divide-y divide-border-default text-body-m">
             <li className="flex justify-between py-2.5">
-              <span>Removed now (rebuildable)</span>
+              <span>{t("review.confirm.removedNow")}</span>
               <span className="tabular text-text-secondary">{formatBytes(confirmTotals.freesNow)}</span>
             </li>
             <li className="flex justify-between py-2.5">
-              <span>Moved to the Recycle Bin</span>
+              <span>{t("review.confirm.recycled")}</span>
               <span className="tabular text-text-secondary">{formatBytes(confirmTotals.toRecycleBin)}</span>
             </li>
           </ul>
@@ -398,7 +400,7 @@ function GroupHeader(props: {
   return (
     <div className="flex items-center gap-3 border-b border-border-default bg-bg-subtle px-4 py-2.5">
       <Checkbox
-        aria-label={`Select all in ${props.source}`}
+        aria-label={t("review.selectGroup", { source: props.source })}
         checked={props.state === "all"}
         indeterminate={props.state === "some"}
         disabled={props.disabled}

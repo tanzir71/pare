@@ -23,6 +23,12 @@ export interface FileRowProps extends Omit<HTMLAttributes<HTMLDivElement>, "chil
   onCheckedChange?: (checked: boolean) => void;
   /** Hide the trailing chevron (no details panel). */
   hideChevron?: boolean;
+  /** Accessible name of the checkbox. Default "Select {name}". */
+  selectLabel?: string;
+  /** Byte formatter for a numeric `size`. Default `formatBytes` ("12.8 GB"). */
+  formatSize?: (bytes: number) => string;
+  /** Byte formatter for the exact-size tooltip. Default `formatBytesExact`. */
+  formatSizeExact?: (bytes: number) => string;
 }
 
 /**
@@ -41,11 +47,14 @@ export function FileRow({
   disabled = false,
   onCheckedChange,
   hideChevron = false,
+  selectLabel,
+  formatSize = formatBytes,
+  formatSizeExact = formatBytesExact,
   className,
   ...props
 }: FileRowProps) {
-  const sizeText = typeof size === "number" ? formatBytes(size) : size;
-  const sizeTitle = typeof size === "number" ? formatBytesExact(size) : undefined;
+  const sizeText = typeof size === "number" ? formatSize(size) : size;
+  const sizeTitle = typeof size === "number" ? formatSizeExact(size) : undefined;
   return (
     <div
       className={cx("@container border-b border-border-default bg-bg-surface", className)}
@@ -53,7 +62,7 @@ export function FileRow({
     >
       <div className="flex min-w-0 items-center gap-2.5 px-4 py-2.5">
         <Checkbox
-          aria-label={`Select ${name}`}
+          aria-label={selectLabel ?? `Select ${name}`}
           checked={checked}
           disabled={disabled}
           readOnly={onCheckedChange === undefined}

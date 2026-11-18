@@ -92,7 +92,7 @@ pub fn assess(f: &mut Finding, probe: &Probe, env: &Env, opts: &SafetyOptions) {
         {
             tier = tier.downgrade(Tier::Protected {
                 reason: ProtectReason::ToolRunning,
-                detail: Some(format!("{proc_name} is running")),
+                detail: Some(crate::i18n::trf("{app} is running", &[("app", proc_name)])),
             });
         }
     }
@@ -111,7 +111,10 @@ pub fn apply_in_use(f: &mut Finding, holders: Vec<ProcessHolder>) {
     let tier = std::mem::replace(&mut f.tier, Tier::Safe);
     f.tier = tier.downgrade(Tier::Protected {
         reason: ProtectReason::InUse,
-        detail: Some(format!("Open in {}", names.join(", "))),
+        detail: Some(crate::i18n::trf(
+            "Open in {apps}",
+            &[("apps", &names.join(", "))],
+        )),
     });
 }
 

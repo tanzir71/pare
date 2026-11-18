@@ -33,6 +33,13 @@ admin = false                    # needs elevation (system paths)
 detector = ""                    # optional built-in Rust detector id for logic TOML can't express
 verified = false
 sources = ["https://github.com/anthropics/claude-code/issues/11646"]
+unmeasured = false               # guides only: the tool alone knows the size (DISM); no size, no paths
+
+[[rule.action]]                  # guides only (M8): a step Pare runs when the user clicks it
+step = 1                         # index into `guide`
+label = "Shut down WSL"
+run = ["wsl", "--shutdown"]      # program must be in ACTION_PROGRAMS: docker, wsl, dism.exe, pare:compact-vhd
+admin = false                    # true: only runs when Pare is already elevated; otherwise the UI shows the command
 
 [[protect]]                      # paths this tool must never have touched, by any rule
 paths = ["~/.claude/settings*.json", "~/.claude.json", "~/.claude/CLAUDE.md"]
@@ -45,6 +52,10 @@ paths = ["~/.claude/settings*.json", "~/.claude.json", "~/.claude/CLAUDE.md"]
 - `tier = "safe"` requires `why` and `if_removed`.
 - No rule may match a path in any `[[protect]]` block or the global hard-excluded roots.
 - Every rule has a fixture test in `crates/pare-core/tests/rules/`.
+- `[[rule.action]]` needs `disposal = "guide"`, a `step` that exists, and an allow-listed program. User rules can't have actions (or commands).
+- Every rule's `title`, `why`, `if_removed`, guide steps and action labels need an entry in each catalog in `crates/pare-core/locales/` (`cargo test -p pare-core --test i18n` lists what's missing).
+
+**Scheduled cleanups (M8).** A user may put a rule on a schedule only if it's built-in, `verified`, `tier = "safe"`, not `admin`, has no `detector`, and disposes by delete, recycle or command. Each run goes through the same scan, safety pass (24 h recency, in use, "Always keep"), executor and operation log as a manual clean.
 
 ## Built-in detectors
 
@@ -91,6 +102,6 @@ Checked read-only with `pare rules check` (lists and measures matches; never del
 | Status | Rules |
 |---|---|
 | `verified = true` (path matched real data) | `browsers.cache` (Edge) · `claude-code.debug-logs` · `claude-code.orphaned-transcripts` · `claude-code.old-transcripts` · `claude-code.file-history` · `claude-code.caches` · `claude-desktop.app-data-guide` · `codex.archived-sessions` · `codex.old-sessions` · `editors.electron-caches` · `cursor.state-backup` · `cursor.state-db-guide` · `lmstudio.models` · `huggingface.hub` · `npm.cache` · `pnpm.store` · `pip.cache` · `uv.cache` · `cargo.registry` · `gradle.caches` · `maven.repository` · `nuget.http-cache` · `nuget.packages` · `windows.user-temp` · `windows.crash-dumps` · `windows.thumbnail-cache` · `windows.wer` · `docker.vhdx-guide` |
-| Not verifiable on the test machine | `claude-code.old-versions` (Claude Code was installed with npm, not the native installer) · `claude-desktop.electron-cache`, `claude-desktop.vm-bundle-archive`, `claude-desktop.vm-bundle` (the installed version uses `%LOCALAPPDATA%\Claude-Data` instead; see below) · `codex.old-releases` (no standalone Codex CLI; the Codex desktop app ships as MSIX packages) · `editors.cpptools-ipch`, `ollama.models`, `yarn.cache`, `go.build-cache` (tool not installed) |
+| Not verifiable on the test machine | `claude-code.old-versions` (Claude Code was installed with npm, not the native installer) · `claude-desktop.electron-cache`, `claude-desktop.vm-bundle-archive`, `claude-desktop.vm-bundle` (the installed version uses `%LOCALAPPDATA%\Claude-Data` instead; see below) · `codex.old-releases` (no standalone Codex CLI; the Codex desktop app ships as MSIX packages) · `editors.cpptools-ipch`, `ollama.models`, `yarn.cache`, `go.build-cache` (tool not installed) · `wsl.vhdx-guide` (no WSL distribution installed) · `windows.component-store-guide` (needs an elevated session to run; it's a guide, so it never claims Safe) |
 
 **Claude desktop, new layout.** Current Claude desktop builds keep caches, the VM bundle and Cowork sessions in `%LOCALAPPDATA%\Claude-Data\claude_<id>\`, with a README that says nothing inside may be deleted by hand and points to *Settings → This computer → System → Storage*. Pare therefore treats that folder as never-touch (`[[protect]]`) and only shows a guide (`claude-desktop.app-data-guide`).

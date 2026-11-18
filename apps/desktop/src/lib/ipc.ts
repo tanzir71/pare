@@ -13,7 +13,11 @@ import type {
   HistoryOp,
   KnownFolders,
   ProjectsView,
+  ActionReport,
   BrowseChild,
+  CleanReport,
+  Growth,
+  SchedulableRule,
   BrowseView,
   FileKind,
   ProgressPayload,
@@ -85,6 +89,11 @@ export const api = {
   browseKindFiles: (kind: FileKind) => call<BrowseChild[]>("browse_kind_files", { kind }),
   browseItem: (path: string) => call<Finding>("browse_item", { path }),
   relaunchElevated: () => call<void>("relaunch_elevated"),
+  monitorAlerts: () => call<Growth[]>("monitor_alerts"),
+  schedulableRules: () => call<SchedulableRule[]>("schedulable_rules"),
+  guideRun: (id: string, action: number) => call<ActionReport>("guide_run", { id, action }),
+  /** Language for backend text (rule descriptions, card titles, messages) from the next scan on. */
+  localeSet: (lang: string) => call<void>("locale_set", { lang }),
 };
 
 export interface Events {
@@ -94,6 +103,8 @@ export interface Events {
   "clean://progress": CleanProgress;
   "clean://done": CleanDone;
   "clean://error": string;
+  "monitor://alerts": Growth[];
+  "monitor://scheduled": { report: CleanReport };
 }
 
 export async function on<K extends keyof Events>(
