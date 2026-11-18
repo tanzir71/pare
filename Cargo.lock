@@ -2719,7 +2719,6 @@ dependencies = [
  "serde_json",
  "sysinfo",
  "tempfile",
- "thiserror 2.0.21",
  "time",
  "toml 1.2.1+spec-1.1.0",
  "tracing",

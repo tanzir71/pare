@@ -106,6 +106,9 @@ pub fn write_file(p: &Path, size: usize, age_days: f64) {
     set_age(p, age_days);
 }
 
+// filetime's setters are deprecated on newer Rust in favour of std::fs::set_times, which the
+// pinned toolchain doesn't have yet; they still work and only run in tests.
+#[allow(deprecated)]
 pub fn set_age(p: &Path, age_days: f64) {
     let t = SystemTime::now() - Duration::from_secs_f64(age_days * DAY);
     let ft = filetime::FileTime::from_system_time(t);
@@ -195,6 +198,7 @@ pub fn purge_recycled_under(under: &Path) {
 }
 
 /// Set the modification time of `path` and everything under it (links are not followed).
+#[allow(deprecated)]
 pub fn age_tree(path: &Path, age_days: f64) {
     let Ok(m) = fs::symlink_metadata(path) else {
         return;
