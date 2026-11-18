@@ -4,7 +4,7 @@
 
 Pare is a free, open-source cleanup app for Windows 10 and 11. It finds caches, idle build folders, AI-tool logs and forgotten downloads, and tells you what's safe to remove **before** anything is deleted.
 
-> Status: M0–M7 implemented and tested locally; not yet released. See [docs/MILESTONES.md](docs/MILESTONES.md), [CHANGELOG.md](CHANGELOG.md) and [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
+> Status: v0.1.0 is out, with everything through M8 (English and Spanish). Code signing, the Microsoft Store and winget are next. See [docs/MILESTONES.md](docs/MILESTONES.md), [CHANGELOG.md](CHANGELOG.md) and [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md).
 
 ## Why Pare
 
@@ -17,7 +17,9 @@ Pare is a free, open-source cleanup app for Windows 10 and 11. It finds caches, 
 
 ## Install
 
-Releases will appear on the [Releases page](../../releases). Until code signing is in place (M7), Windows SmartScreen may warn on first run.
+Download `Pare_<version>_x64-setup.exe` from the [latest release](https://github.com/tanzir71/pare/releases/latest). It installs for your user account only (no administrator rights).
+
+The installer isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC" the first time: click **More info → Run anyway**. To check the download, compare `Get-FileHash .\Pare_*_x64-setup.exe -Algorithm SHA256` with `SHA256SUMS.txt` on the release page.
 
 ## Develop
 

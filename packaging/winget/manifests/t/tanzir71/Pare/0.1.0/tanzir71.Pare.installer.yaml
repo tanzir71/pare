@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.10.0.schema.json
-# SHA256 from SHA256SUMS.txt of the v0.1.0 draft release. Submit only after that release is published.
+# SHA256 from SHA256SUMS.txt of the published v0.1.0 release.
 PackageIdentifier: tanzir71.Pare
 PackageVersion: 0.1.0
 InstallerType: nullsoft
@@ -11,6 +11,6 @@ UpgradeBehavior: install
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/tanzir71/pare/releases/download/v0.1.0/Pare_0.1.0_x64-setup.exe
-    InstallerSha256: 80FD1E5A0B6836DB878C7525889F1269E7E4AAAA2657B57C74653214F54E7EAF
+    InstallerSha256: 11E698814DBB94CF66E0A28B6C7C77AB83AD49A2FFE1AED5705988C6C53E0093
 ManifestType: installer
 ManifestVersion: 1.10.0

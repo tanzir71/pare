@@ -2,9 +2,9 @@
 // every CTA then reads "Download for Windows" and points at releases/latest.
 import { Bell, Download, type LucideIcon } from "lucide-react";
 
-export const RELEASED = false;
+export const RELEASED = true;
 
-/** Installer size of the published release (measured: v0.1.0 release build from CI, 3,196,614 bytes). Shown only
+/** Installer size of the published release (measured: published v0.1.0 installer, 3,325,791 bytes). Shown only
  * once RELEASED is true, because landing numbers must come from the shipped app. */
 export const DOWNLOAD_SIZE = "3 MB";
 export const downloadSizeText = RELEASED ? `A ${DOWNLOAD_SIZE} download.` : "A small download.";
