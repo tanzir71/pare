@@ -27,3 +27,4 @@ lighthouse/
 
 # Claude Code worktrees
 .claude/worktrees/
+.claude/launch.json

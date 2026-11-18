@@ -49,8 +49,9 @@ function keptPhrase(protectedCounts: { reason: ProtectReason; count: number }[])
   const other = n(["cloud-only", "system-path", "never-touch"]);
   if (other) parts.push(`${plural(other, "protected item")}`);
   if (parts.length === 0) return "Nothing needed protecting in this scan.";
-  const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
-  return `${list[0]!.toUpperCase()}${list.slice(1)} ${parts.length === 1 && list.startsWith("1 ") ? "was" : "were"} left out.`;
+  const list = parts.length === 1 ? parts[0]! : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)!}`;
+  const verb = parts.length === 1 && list.startsWith("1 ") ? "was" : "were";
+  return `${list.charAt(0).toUpperCase()}${list.slice(1)} ${verb} left out.`;
 }
 
 async function safeIds(categories: CategorySummary[]): Promise<string[]> {

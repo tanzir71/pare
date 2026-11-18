@@ -317,7 +317,7 @@ export function Review({ category }: { category: CategoryId }) {
           <div
             role="region"
             aria-label="Selection"
-            className="pare-rise absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 items-center gap-6 rounded-lg bg-bg-inverse py-2.5 pl-5 pr-2.5 shadow-floating"
+            className="pare-rise absolute bottom-6 left-1/2 z-10 flex w-max max-w-[calc(100%-48px)] -translate-x-1/2 items-center gap-6 whitespace-nowrap rounded-lg bg-bg-inverse py-2.5 pl-5 pr-2.5 shadow-floating"
           >
             <div className="tabular">
               <p className="text-body-m-strong text-on-inverse-text">
