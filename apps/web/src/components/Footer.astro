@@ -1,0 +1,70 @@
+---
+import { Lockup } from "@pare/ui";
+import { download, links, site, withBase } from "../site";
+
+const columns = [
+  {
+    title: "Product",
+    items: [
+      { label: "Download", href: download.href },
+      { label: "Changelog", href: links.changelog },
+      { label: "Roadmap", href: links.roadmap },
+    ],
+  },
+  {
+    title: "Project",
+    items: [
+      { label: "GitHub", href: links.repo },
+      { label: "Cleanup rules", href: links.rules },
+      { label: "Contribute", href: links.contribute },
+    ],
+  },
+  {
+    title: "Legal",
+    items: [
+      { label: "Security", href: links.security },
+      { label: "Privacy", href: withBase("privacy/") },
+      { label: "MIT License", href: links.license },
+    ],
+  },
+];
+const year = new Date().getFullYear();
+---
+
+<footer class="defer-render [--cis:427px] md:[--cis:158px] border-t border-border-default bg-bg-surface pb-12 pt-12">
+  <div class="page">
+    <div class="grid gap-10 md:grid-cols-[1fr_auto] md:gap-12">
+      <div class="flex flex-col gap-3">
+        <a href={withBase("/")} class="focus-ring -m-1 self-start rounded-md p-1" aria-label="Pare home">
+          <Lockup markSize={32} />
+        </a>
+        <p class="m-0 text-body-m text-text-secondary">{site.tagline}</p>
+      </div>
+      <nav aria-label="Footer" class="grid grid-cols-2 gap-x-6 gap-y-8 sm:grid-cols-3 md:gap-x-12">
+        {
+          columns.map((col) => (
+            <div class="flex min-w-[140px] flex-col gap-2.5 xl:w-40">
+              <h2 class="m-0 text-body-m-strong text-text-primary">{col.title}</h2>
+              <ul class="m-0 flex list-none flex-col gap-2.5 p-0 text-body-m">
+                {col.items.map((item) => (
+                  <li>
+                    <a
+                      href={item.href}
+                      class="focus-ring rounded-sm text-body-m text-text-secondary no-underline transition-[color,background-color,border-color] duration-[var(--pare-motion-base)] ease-pare hover:text-text-primary"
+                    >
+                      {item.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+      </nav>
+    </div>
+    <p class="mb-0 mt-8 text-caption text-text-secondary">
+      © {year} Pare contributors. Pare is an independent project and is not affiliated with Microsoft, Google, Anthropic
+      or OpenAI.
+    </p>
+  </div>
+</footer>

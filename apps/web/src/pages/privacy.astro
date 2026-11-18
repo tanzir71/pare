@@ -1,0 +1,62 @@
+---
+import Base from "../layouts/Base.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import { links } from "../site";
+
+const linkClass = "focus-ring rounded-sm text-accent-default underline underline-offset-2 hover:text-accent-hover";
+---
+
+<Base
+  title="Privacy · Pare"
+  description="Pare has no telemetry and no account. The app makes no network calls except an optional update check you turn on yourself."
+>
+  <Header home={false} />
+  <main id="main" tabindex="-1" class="outline-none">
+    <article class="page pb-24 pt-8 md:pt-12">
+      <div class="mx-auto max-w-[720px]">
+        <p class="m-0 text-overline uppercase text-accent-default">Privacy</p>
+        <h1 class="mb-0 mt-4 text-heading-h1 text-text-primary md:text-display-l">Nothing leaves your PC</h1>
+        <p class="mb-0 mt-6 text-body-l text-text-secondary">
+          Pare is a local app. It reads your drives to suggest what you could remove, and everything it learns stays on
+          your computer.
+        </p>
+
+        <h2 class="mb-0 mt-12 text-heading-h3 text-text-primary">What the app does not do</h2>
+        <ul class="mb-0 mt-4 flex list-disc flex-col gap-2 pl-6 text-body-l text-text-secondary">
+          <li>No telemetry, analytics or crash reporting.</li>
+          <li>No account and no sign-in.</li>
+          <li>No uploads of file names, paths or contents. Ever.</li>
+        </ul>
+
+        <h2 class="mb-0 mt-12 text-heading-h3 text-text-primary">The one network call</h2>
+        <p class="mb-0 mt-4 text-body-l text-text-secondary">
+          Pare can check whether a newer version is out. The check is opt-in: it stays off until you turn it on, and
+          it sends nothing about your files.
+        </p>
+
+        <h2 class="mb-0 mt-12 text-heading-h3 text-text-primary">What stays on your PC</h2>
+        <p class="mb-0 mt-4 text-body-l text-text-secondary">
+          Every cleanup is written to a log in <code class="font-mono text-body-m text-text-primary"
+            >%LOCALAPPDATA%\Pare\logs</code
+          > before it runs, so you can see what was removed and when. You can open or delete that folder at any time.
+        </p>
+
+        <h2 class="mb-0 mt-12 text-heading-h3 text-text-primary">This website</h2>
+        <p class="mb-0 mt-4 text-body-l text-text-secondary">
+          This page is hosted on GitHub Pages. It uses no cookies, analytics or trackers. GitHub may keep standard
+          server logs; see
+          <a class={linkClass} href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement"
+            >GitHub's privacy statement</a
+          >.
+        </p>
+
+        <p class="mb-0 mt-12 text-body-m text-text-secondary">
+          Questions? Open an issue on <a class={linkClass} href={links.repo}>GitHub</a>. To report a security problem,
+          read the <a class={linkClass} href={links.security}>security policy</a>.
+        </p>
+      </div>
+    </article>
+  </main>
+  <Footer />
+</Base>

@@ -1,0 +1,90 @@
+@import "@pare/tokens/tokens.css";
+@import "tailwindcss";
+@import "@pare/tokens/theme.css";
+
+/* @pare/ui components are rendered on this page; let Tailwind see their classes. */
+@source "../../../../packages/ui/src";
+
+@layer base {
+  :root {
+    /* Page gutter (DESIGN.md §6.3): 20 at 390, 40 at 768, 48 from 1024; content max 1200. */
+    --gutter: 20px;
+  }
+  @media (width >= 48rem) {
+    :root {
+      --gutter: 40px;
+    }
+  }
+  @media (width >= 64rem) {
+    :root {
+      --gutter: 48px;
+    }
+  }
+
+  html {
+    background-color: var(--pare-bg-surface);
+    color: var(--pare-text-primary);
+    font-family: var(--pare-font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+    overflow-x: clip;
+  }
+
+  ::selection {
+    background-color: var(--pare-accent-subtle);
+    color: var(--pare-accent-on-subtle);
+  }
+
+  :target {
+    scroll-margin-top: 16px;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Centered page column: max 1200 of content plus the responsive gutter. */
+@utility page {
+  width: 100%;
+  max-width: calc(1200px + 2 * var(--gutter));
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* Shared link focus ring (matches @pare/ui focusRing). */
+@utility focus-ring {
+  outline: none;
+  &:focus-visible {
+    outline: 2px solid var(--pare-accent-default);
+    outline-offset: 2px;
+  }
+}
+
+/* Below-the-fold sections: skip style, layout and paint until they near the viewport
+   (keeps main-thread work low on phones). Content stays in the accessibility tree. */
+@utility defer-render {
+  content-visibility: auto;
+  /* Per-section estimate of the content-box height (set --cis, padding excluded),
+     so the page height barely changes when a section renders. */
+  contain-intrinsic-size: auto var(--cis, 800px);
+}

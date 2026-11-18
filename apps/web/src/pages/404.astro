@@ -1,0 +1,25 @@
+---
+import { Button } from "@pare/ui";
+import { ArrowLeft } from "lucide-react";
+import Base from "../layouts/Base.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import { withBase } from "../site";
+---
+
+<Base title="Page not found · Pare" description="This page doesn't exist." noindex>
+  <Header home={false} />
+  <main id="main" tabindex="-1" class="outline-none">
+    <section class="page flex flex-col items-center py-24 text-center">
+      <p class="m-0 text-overline uppercase text-accent-default">404</p>
+      <h1 class="mb-0 mt-4 text-heading-h1 text-text-primary md:text-display-l">Nothing here</h1>
+      <p class="mb-0 mt-4 max-w-[520px] text-body-l text-text-secondary">
+        This page doesn't exist. It may have moved, or the link has a typo.
+      </p>
+      <Button href={withBase("/")} size="l" variant="secondary" icon={ArrowLeft} className="mt-8">
+        Back to the home page
+      </Button>
+    </section>
+  </main>
+  <Footer />
+</Base>
