@@ -162,7 +162,11 @@ pub fn scan(
     // Whole drives: keep every folder but only the files detectors need, so memory stays
     // proportional to folders rather than files.
     let keep = if req.whole_drives {
-        let dup = cfg.thresholds.duplicate_min_mb.saturating_mul(1_000_000).max(1);
+        let dup = cfg
+            .thresholds
+            .duplicate_min_mb
+            .saturating_mul(1_000_000)
+            .max(1);
         crate::scan::walker::Keep {
             all: false,
             under: vec![
@@ -265,6 +269,7 @@ pub fn scan(
             let rule_roots = rule_roots.clone();
             let drives = drives_for_rules.clone();
             let whole = req.whole_drives;
+            let check_in_use = cfg.check_in_use;
             let recent_ms = cfg.thresholds.recent_hours as i64 * MS_PER_HOUR;
             detectors.push((
                 id,
@@ -277,6 +282,7 @@ pub fn scan(
                         drives: &drives,
                         elevated,
                         within: if whole { None } else { Some(&rule_roots) },
+                        check_in_use,
                     };
                     crate::rules::engine::run_category(&set, &ctx, cat)
                 }),
@@ -338,11 +344,16 @@ pub fn scan(
     ]);
     let claimed_ref = &claimed;
     if cfg.duplicates {
-        let threads = roots.first().map(|r| crate::detectors::duplicates::hash_threads(r)).unwrap_or(2);
+        let threads = roots
+            .first()
+            .map(|r| crate::detectors::duplicates::hash_threads(r))
+            .unwrap_or(2);
         detectors.push((
             "duplicates",
             "Duplicates",
-            Box::new(move |c: &DetectCtx| crate::detectors::duplicates::duplicates(c, threads, &claimed_ref.lock().unwrap())),
+            Box::new(move |c: &DetectCtx| {
+                crate::detectors::duplicates::duplicates(c, threads, &claimed_ref.lock().unwrap())
+            }),
         ));
     }
     if cfg.include_recycle_bin && !env.is_fake {
@@ -412,7 +423,10 @@ pub fn scan(
             }
         }
         phases.push((format!("{id}: detect"), t_detect));
-        phases.push((format!("{id}: measure+safety"), t0.elapsed().as_millis() as u64 - t_detect));
+        phases.push((
+            format!("{id}: measure+safety"),
+            t0.elapsed().as_millis() as u64 - t_detect,
+        ));
         let mut found = 0u64;
         let mut touched: Vec<CategoryId> = Vec::new();
         for (f, _) in assessed {

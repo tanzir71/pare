@@ -8,7 +8,9 @@ use common::*;
 use pare_core::{CategoryId, Disposal, Tier};
 
 fn content(seed: u8, len: usize) -> Vec<u8> {
-    (0..len).map(|i| (i as u8).wrapping_mul(31).wrapping_add(seed)).collect()
+    (0..len)
+        .map(|i| (i as u8).wrapping_mul(31).wrapping_add(seed))
+        .collect()
 }
 
 fn write_bytes(p: &std::path::Path, bytes: &[u8], age: f64) {
@@ -43,14 +45,26 @@ fn duplicates_keep_one_copy_and_ignore_hard_links() {
     age_tree(h.home(), 40.0);
 
     let out = h.scan();
-    let dupes: Vec<_> = out.result.findings.iter().filter(|f| f.category == CategoryId::Duplicates).collect();
+    let dupes: Vec<_> = out
+        .result
+        .findings
+        .iter()
+        .filter(|f| f.category == CategoryId::Duplicates)
+        .collect();
     assert_eq!(dupes.len(), 1, "{dupes:#?}");
     let f = dupes[0];
     assert_eq!(f.tier, Tier::Review);
     assert_eq!(f.disposal, Disposal::Recycle);
     assert_eq!(f.paths.len(), 2, "two of three copies");
-    assert!(!f.paths.iter().any(|p| p == &doc), "the Documents copy is kept");
-    assert!(f.facts.iter().any(|(k, v)| k == "Kept copy" && v.ends_with("trip.mov")));
+    assert!(
+        !f.paths.iter().any(|p| p == &doc),
+        "the Documents copy is kept"
+    );
+    assert!(
+        f.facts
+            .iter()
+            .any(|(k, v)| k == "Kept copy" && v.ends_with("trip.mov"))
+    );
     // Even selecting everything leaves one copy on disk.
     let report = h.clean(std::slice::from_ref(f), out.result.started);
     purge_recycled_under_any(h.dir.path());
@@ -58,7 +72,13 @@ fn duplicates_keep_one_copy_and_ignore_hard_links() {
     assert_eq!(report.failed, 0, "{:?}", report.results);
     // Re-scan: nothing left to suggest.
     let again = h.scan();
-    assert!(!again.result.findings.iter().any(|f| f.category == CategoryId::Duplicates));
+    assert!(
+        !again
+            .result
+            .findings
+            .iter()
+            .any(|f| f.category == CategoryId::Duplicates)
+    );
 }
 
 /// M5 acceptance: restore puts a file back at its original path; collisions are reported, not
@@ -71,7 +91,13 @@ fn restore_and_collisions() {
     let a = h.file("Downloads/report-old.pdf", 2000, 400.0);
     let b = h.file("Downloads/photo-old.jpg", 2000, 400.0);
     let out = h.scan();
-    let sel: Vec<_> = out.result.findings.iter().filter(|f| f.rule_id == "downloads.old").cloned().collect();
+    let sel: Vec<_> = out
+        .result
+        .findings
+        .iter()
+        .filter(|f| f.rule_id == "downloads.old")
+        .cloned()
+        .collect();
     assert_eq!(sel.len(), 2);
     let report = h.clean(&sel, out.result.started);
     assert_eq!(report.ok, 2);
@@ -84,7 +110,11 @@ fn restore_and_collisions() {
     assert_eq!(r.restored, 1, "{r:?}");
     assert!(a.exists(), "restored to its original path");
     assert_eq!(r.collisions, vec![b.clone()]);
-    assert_eq!(fs::read(&b).unwrap(), b"a new file with the same name", "never overwritten");
+    assert_eq!(
+        fs::read(&b).unwrap(),
+        b"a new file with the same name",
+        "never overwritten"
+    );
 
     // History reflects it; emptying Pare's items removes only what Pare moved.
     let detail = pare_core::history::get(&h.env.oplog_path(), &report.op_id).unwrap();

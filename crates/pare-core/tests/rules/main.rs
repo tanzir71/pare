@@ -77,6 +77,7 @@ fn ctx<'a>(h: &'a FakeHome, within: &'a [PathBuf]) -> RuleCtx<'a> {
         drives: &[],
         elevated: true,
         within: Some(within),
+        check_in_use: true,
     }
 }
 
@@ -467,4 +468,35 @@ fn tool_command_exit_status_and_isolation() {
         .unwrap();
     assert_eq!(d.status, ItemStatus::Ok);
     assert!(!p.exists());
+}
+
+/// One file another app holds open is split out; the rest of %TEMP% stays suggestible.
+#[cfg(windows)]
+#[test]
+fn held_temp_file_does_not_block_the_rest() {
+    let h = FakeHome::new();
+    let free = h.env.temp.join("old-free.tmp");
+    let held = h.env.temp.join("old-held.tmp");
+    write_file(&free, 4096, 5.0);
+    write_file(&held, 4096, 5.0);
+    let _holder = Holder::spawn(&held);
+    let set = RuleSet::builtin();
+    let (tool, rule) = set.rule("windows.user-temp").unwrap();
+    let within = vec![h.dir.path().to_path_buf()];
+    let c = run_rule(tool, rule, &ctx(&h, &within), &protect_set(&set, &h));
+    let main = c
+        .iter()
+        .find(|c| c.tier == Tier::Safe)
+        .expect("suggestible part");
+    assert!(covers(main, &free));
+    assert!(!covers(main, &held));
+    let kept = c.iter().find(|c| c.tier.is_protected()).expect("held part");
+    assert!(covers(kept, &held));
+    assert!(matches!(
+        kept.tier,
+        Tier::Protected {
+            reason: ProtectReason::InUse,
+            ..
+        }
+    ));
 }

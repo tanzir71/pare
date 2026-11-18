@@ -118,6 +118,14 @@ pub fn path_starts_with(path: &Path, prefix: &Path) -> bool {
 
 pub fn eq_component(a: &std::ffi::OsStr, b: &std::ffi::OsStr) -> bool {
     if cfg!(windows) {
+        let (x, y) = (a.as_encoded_bytes(), b.as_encoded_bytes());
+        if x.eq_ignore_ascii_case(y) {
+            return true;
+        }
+        if x.is_ascii() && y.is_ascii() {
+            return false;
+        }
+        // Non-ASCII names: full Unicode lowercase (rare, so the allocation is fine).
         a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase()
     } else {
         a == b

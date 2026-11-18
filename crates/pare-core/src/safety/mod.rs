@@ -70,6 +70,12 @@ pub fn assess(f: &mut Finding, probe: &Probe, env: &Env, opts: &SafetyOptions) {
         }
     }
 
+    // Guides never act on anything, so "kept because it's in use" would only confuse.
+    if matches!(f.disposal, crate::types::Disposal::Guide { .. }) {
+        f.tier = tier;
+        return;
+    }
+
     if probe.any_cloud {
         tier = tier.downgrade(Tier::protected(ProtectReason::CloudOnly));
     }

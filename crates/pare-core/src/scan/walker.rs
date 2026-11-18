@@ -74,7 +74,17 @@ impl Walker<'_> {
                         DirResult::default(),
                     );
                 }
-                let r = self.walk_dir(root, self.keep_min(root, if self.keep.all { 0 } else { self.keep.min_bytes }));
+                let r = self.walk_dir(
+                    root,
+                    self.keep_min(
+                        root,
+                        if self.keep.all {
+                            0
+                        } else {
+                            self.keep.min_bytes
+                        },
+                    ),
+                );
                 (root.clone(), Some(meta), Leaf::No, r)
             })
             .collect();
