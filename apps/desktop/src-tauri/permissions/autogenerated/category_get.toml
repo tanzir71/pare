@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-category-get"
+description = "Enables the category_get command without any pre-configured scope."
+commands.allow = ["category_get"]
+
+[[permission]]
+identifier = "deny-category-get"
+description = "Denies the category_get command without any pre-configured scope."
+commands.deny = ["category_get"]

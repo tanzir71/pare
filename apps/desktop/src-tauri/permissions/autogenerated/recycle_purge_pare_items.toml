@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-recycle-purge-pare-items"
+description = "Enables the recycle_purge_pare_items command without any pre-configured scope."
+commands.allow = ["recycle_purge_pare_items"]
+
+[[permission]]
+identifier = "deny-recycle-purge-pare-items"
+description = "Denies the recycle_purge_pare_items command without any pre-configured scope."
+commands.deny = ["recycle_purge_pare_items"]

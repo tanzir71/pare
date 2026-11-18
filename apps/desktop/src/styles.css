@@ -1,0 +1,74 @@
+@import "@pare/tokens/tokens.css";
+@import "tailwindcss";
+@import "@pare/tokens/theme.css";
+
+@source "../../../packages/ui/src";
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    margin: 0;
+    background: var(--pare-bg-app);
+    color: var(--pare-text-primary);
+    font-family: var(--pare-font-sans);
+    font-size: var(--pare-type-body-m-size);
+    line-height: var(--pare-type-body-m-line);
+    letter-spacing: var(--pare-type-body-m-tracking);
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    user-select: none;
+    cursor: default;
+  }
+  .tabular,
+  [data-numeric] {
+    font-variant-numeric: tabular-nums;
+  }
+  ::selection {
+    background: var(--pare-accent-subtle);
+  }
+  dialog::backdrop {
+    background: color-mix(in srgb, var(--pare-bg-inverse) 40%, transparent);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--pare-border-strong) transparent;
+  }
+}
+
+@keyframes pare-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes pare-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.pare-rise {
+  animation: pare-rise var(--pare-motion-base) var(--pare-motion-ease) both;
+}
+.pare-spin {
+  animation: pare-spin 1.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pare-rise,
+  .pare-spin {
+    animation: none;
+  }
+  * {
+    transition-duration: 0ms !important;
+  }
+}

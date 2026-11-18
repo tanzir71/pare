@@ -1,0 +1,36 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The main window: Pare's own commands plus window controls for the custom title bar.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:event:default",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
+    "core:window:allow-set-theme",
+    "dialog:allow-open",
+    "allow-app-info",
+    "allow-list-drives",
+    "allow-known-folders",
+    "allow-scan-start",
+    "allow-scan-cancel",
+    "allow-scan-summary",
+    "allow-category-get",
+    "allow-finding-get",
+    "allow-protected-list",
+    "allow-clean",
+    "allow-history-list",
+    "allow-history-get",
+    "allow-history-restore",
+    "allow-recycle-purge-pare-items",
+    "allow-settings-get",
+    "allow-settings-set",
+    "allow-exclusion-add",
+    "allow-open-in-explorer"
+  ]
+}
