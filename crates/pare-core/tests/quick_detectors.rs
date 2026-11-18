@@ -38,8 +38,10 @@ fn installers_older_than_7_days_are_review() {
 #[test]
 fn archives_with_an_extracted_sibling_folder() {
     let h = FakeHome::new();
+    // Windows names are case-insensitive, so "Photos" counts as photos.zip's folder there.
+    let folder = if cfg!(windows) { "Photos" } else { "photos" };
     h.file("Downloads/photos.zip", 1000, 2.0);
-    h.file("Downloads/Photos/a.jpg", 1000, 2.0);
+    h.file(&format!("Downloads/{folder}/a.jpg"), 1000, 2.0);
     h.file("Downloads/lonely.7z", 1000, 2.0);
     let out = h.scan();
     let f = find(
@@ -49,7 +51,7 @@ fn archives_with_an_extracted_sibling_folder() {
     )
     .expect("extracted archive");
     assert_eq!(f.tier, Tier::Review);
-    assert!(f.why.contains("Photos"));
+    assert!(f.why.contains(folder));
     assert!(
         find(
             &out.result.findings,
