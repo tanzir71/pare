@@ -37,6 +37,8 @@
     "allow-browse-view",
     "allow-browse-kind-files",
     "allow-browse-item",
-    "allow-relaunch-elevated"
+    "allow-relaunch-elevated",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

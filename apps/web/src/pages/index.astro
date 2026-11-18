@@ -22,7 +22,7 @@ import Footer from "../components/Footer.astro";
 import SectionHeader from "../components/SectionHeader.astro";
 import { HeroMock } from "../components/HeroMock";
 import { SafetyExample } from "../components/SafetyExample";
-import { download, links } from "../site";
+import { download, downloadSizeText, links } from "../site";
 
 const trust: Array<{ icon: LucideIcon; text: string }> = [
   { icon: ShieldCheck, text: "Open-source rules you can audit" },
@@ -378,7 +378,7 @@ const faq = [
         <div class="flex flex-col items-center rounded-xl bg-accent-default px-6 py-14 text-center md:px-12 md:py-[72px]">
           <h2 id="cta-title" class="m-0 text-heading-h1 text-text-on-accent md:text-display-l">Get your space back.</h2>
           <p class="mb-0 mt-5 max-w-[600px] text-body-l text-text-on-accent">
-            A small download. No account. Works on Windows 10 and 11.
+            {downloadSizeText} No account. Works on Windows 10 and 11.
           </p>
           <Button
             href={download.href}

@@ -16,8 +16,15 @@ pub fn run() {
     let state = AppState::new(pare_core::Env::from_process());
     commands::startup_housekeeping(&state);
 
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_process::init());
+    // The updater only exists in builds signed for it (the release workflow passes the public
+    // key). It never runs unless the user turned on "Check for updates".
+    if let Some(pubkey) = option_env!("PARE_UPDATER_PUBKEY").filter(|k| !k.is_empty()) {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().pubkey(pubkey).build());
+    }
+    builder
         .manage(state)
         .invoke_handler(tauri::generate_handler![
             commands::app_info,

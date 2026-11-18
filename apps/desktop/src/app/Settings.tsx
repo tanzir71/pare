@@ -3,6 +3,8 @@ import { FolderOpen, FolderPlus, X } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { Button, Chip, cx, focusRing } from "@pare/ui";
 import { api, isTauri } from "../lib/ipc";
+import { checkForUpdate, markChecked } from "../lib/updates";
+import { useState } from "react";
 import type { CategoryId, Settings, Theme, Thresholds } from "../lib/types";
 import { useApp } from "../state/app";
 
@@ -83,6 +85,7 @@ export function SettingsScreen() {
   const settings = useApp((s) => s.settings);
   const info = useApp((s) => s.info);
   const update = useApp((s) => s.updateSettings);
+  const [updateMsg, setUpdateMsg] = useState<string | null>(null);
   if (!settings) return null;
   const set = (patch: Partial<Settings>) => void update(patch);
 
@@ -221,6 +224,22 @@ export function SettingsScreen() {
           checked={settings.checkForUpdates}
           onChange={(v) => set({ checkForUpdates: v })}
         />
+        {settings.checkForUpdates && (
+          <div className="flex items-center gap-3">
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                setUpdateMsg("Checking…");
+                const r = await checkForUpdate();
+                markChecked();
+                setUpdateMsg(r.kind === "none" ? "You have the latest version." : r.kind === "available" ? `Pare ${r.update.version} is available. Restart Pare to install it.` : r.reason);
+              }}
+            >
+              Check now
+            </Button>
+            {updateMsg && <span className="text-body-s text-text-secondary">{updateMsg}</span>}
+          </div>
+        )}
       </Section>
 
       <Section title="About">

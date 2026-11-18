@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.10.0.schema.json
+PackageIdentifier: tanzir71.Pare
+PackageVersion: 1.0.0
+PackageLocale: en-US
+Publisher: Pare contributors
+PublisherUrl: https://github.com/tanzir71/pare
+PublisherSupportUrl: https://github.com/tanzir71/pare/issues
+PackageName: Pare
+PackageUrl: https://tanzir71.github.io/pare/
+License: MIT
+LicenseUrl: https://github.com/tanzir71/pare/blob/main/LICENSE
+ShortDescription: Make room on your PC. Keep what matters.
+Description: Pare finds caches, idle build folders, AI-tool logs and forgotten downloads, and shows you what's safe to remove before anything is deleted. Your files go to the Recycle Bin first; nothing leaves your PC.
+Moniker: pare
+Tags:
+  - cleanup
+  - disk-space
+  - storage
+  - developer-tools
+ReleaseNotesUrl: https://tanzir71.github.io/pare/changelog/
+ManifestType: defaultLocale
+ManifestVersion: 1.10.0
