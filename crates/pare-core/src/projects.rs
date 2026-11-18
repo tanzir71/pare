@@ -507,3 +507,108 @@ pub fn scan_projects(
         .map(|(root, parent)| analyze(root, parent.as_deref(), ecos, now, idle_days))
         .collect()
 }
+
+/// Linked worktrees of `root` whose branch is already merged into the main branch and that have
+/// no uncommitted changes. Removed with `git worktree remove`, which keeps the branch.
+pub fn stale_worktrees(root: &Path, now: Timestamp) -> Vec<Candidate> {
+    let Ok(repo) = git2::Repository::open(root) else {
+        return Vec::new();
+    };
+    if repo.is_worktree() {
+        return Vec::new();
+    }
+    let Some(main) = ["main", "master", "trunk", "develop"].iter().find_map(|b| {
+        repo.find_branch(b, git2::BranchType::Local)
+            .ok()
+            .and_then(|br| br.get().target())
+    }) else {
+        return Vec::new();
+    };
+    let Ok(names) = repo.worktrees() else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for name in names.iter().filter_map(|n| n.ok().flatten()) {
+        let Ok(wt) = repo.find_worktree(name) else {
+            continue;
+        };
+        if wt.validate().is_err()
+            || !matches!(wt.is_locked(), Ok(git2::WorktreeLockStatus::Unlocked))
+        {
+            continue;
+        }
+        let path = wt.path().to_path_buf();
+        let Ok(wrepo) = git2::Repository::open_from_worktree(&wt) else {
+            continue;
+        };
+        let mut opts = git2::StatusOptions::new();
+        opts.include_untracked(true)
+            .recurse_untracked_dirs(false)
+            .include_ignored(false);
+        let dirty = wrepo
+            .statuses(Some(&mut opts))
+            .map(|s| s.iter().any(|e| e.status() != git2::Status::CURRENT))
+            .unwrap_or(true);
+        if dirty {
+            continue;
+        }
+        let Some(head) = wrepo.head().ok().and_then(|h| h.target()) else {
+            continue;
+        };
+        let merged = head == main || repo.graph_descendant_of(main, head).unwrap_or(false);
+        if !merged {
+            continue;
+        }
+        let branch = wrepo
+            .head()
+            .ok()
+            .and_then(|h| h.shorthand().ok().map(String::from))
+            .unwrap_or_else(|| name.to_string());
+        let m = measure_path(&path);
+        let project = root
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let mut c = Candidate::new(
+            "projects.stale-worktree",
+            CategoryId::ProjectBuild,
+            format!("Worktree {name}"),
+        );
+        c.source = project.clone();
+        c.source_path = Some(root.to_path_buf());
+        c.extra_paths = vec![path.clone()];
+        c.tier = Tier::Review;
+        c.disposal = Disposal::Command {
+            program: "git".into(),
+            args: vec![
+                "-C".into(),
+                root.to_string_lossy().into_owned(),
+                "worktree".into(),
+                "remove".into(),
+                path.to_string_lossy().into_owned(),
+            ],
+        };
+        c.comes_back = ComesBack::OnDemand;
+        c.why = format!(
+            "A git worktree of {project} on branch {branch}, already merged into the main branch, with no uncommitted changes."
+        );
+        c.if_removed = format!(
+            "Git removes the worktree folder. The branch {branch} and its commits stay in the repository; add the worktree again anytime."
+        );
+        c.note = Some(format!("Changed {}", age_phrase(now, m.newest)));
+        c.badge = Some("Merged".into());
+        c.facts.push(("Branch".into(), branch));
+        let mut dates = Dates::default();
+        dates.include(m.created_min, m.newest, 0);
+        c.measured = Some(Measured {
+            bytes: m.allocated,
+            logical: m.logical,
+            items: m.files,
+            dates,
+            newest: m.newest,
+            recent_files: m.recent_files,
+        });
+        out.push(c);
+    }
+    out
+}

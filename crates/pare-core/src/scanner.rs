@@ -245,6 +245,11 @@ pub fn scan(
         now,
         thresholds: &cfg.thresholds,
         root_labels: &root_labels,
+        installed: if env.is_fake {
+            Vec::new()
+        } else {
+            platform::installed_apps()
+        },
     };
 
     let mut safety_opts = SafetyOptions::new(now);
@@ -319,6 +324,9 @@ pub fn scan(
                 for (p, cand) in found {
                     if let Some(cand) = cand {
                         cands.push(cand);
+                    }
+                    if p.git.is_some() {
+                        cands.extend(crate::projects::stale_worktrees(&p.root, c.now));
                     }
                     projects.push(p);
                 }
@@ -584,7 +592,11 @@ pub fn scan_projects_only(
     let mut projects = Vec::new();
     let mut assessed: Vec<(Finding, Vec<PathBuf>)> = Vec::new();
     for (p, cand) in found {
-        if let Some(c) = cand {
+        let mut cands: Vec<Candidate> = cand.into_iter().collect();
+        if p.git.is_some() {
+            cands.extend(crate::projects::stale_worktrees(&p.root, now));
+        }
+        for c in cands {
             let (mut f, probe) = measure(c, &tree);
             safety::assess(&mut f, &probe, env, &safety_opts);
             let files = if f.tier.is_protected() {

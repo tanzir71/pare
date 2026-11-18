@@ -133,3 +133,7 @@ pub fn list_drives() -> Vec<Drive> {
 pub fn is_elevated() -> bool {
     false
 }
+
+pub fn installed_apps() -> Vec<(String, Option<String>)> {
+    Vec::new()
+}

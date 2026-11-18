@@ -603,6 +603,82 @@ pub fn is_elevated() -> bool {
     ok != 0 && elevation.TokenIsElevated != 0
 }
 
+/// Display names (and versions) of installed apps, from the Uninstall registry keys.
+pub fn installed_apps() -> Vec<(String, Option<String>)> {
+    use windows_sys::Win32::System::Registry::{
+        HKEY, HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE, KEY_READ, KEY_WOW64_32KEY, RRF_RT_REG_SZ,
+        RegCloseKey, RegEnumKeyExW, RegGetValueW, RegOpenKeyExW,
+    };
+    let path: Vec<u16> = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\0"
+        .encode_utf16()
+        .collect();
+    let mut out = Vec::new();
+    let read = |key: HKEY, sub: &[u16], name: &str| -> Option<String> {
+        let value: Vec<u16> = name.encode_utf16().chain(std::iter::once(0)).collect();
+        let mut buf = [0u16; 512];
+        let mut size = (buf.len() * 2) as u32;
+        // SAFETY: valid key, wide strings and buffer of `size` bytes.
+        let rc = unsafe {
+            RegGetValueW(
+                key,
+                sub.as_ptr(),
+                value.as_ptr(),
+                RRF_RT_REG_SZ,
+                null_mut(),
+                buf.as_mut_ptr() as *mut c_void,
+                &mut size,
+            )
+        };
+        if rc != 0 {
+            return None;
+        }
+        let n = (size as usize / 2).saturating_sub(1).min(buf.len());
+        let s = String::from_utf16_lossy(&buf[..n]);
+        (!s.trim().is_empty()).then_some(s)
+    };
+    for (root, flags) in [
+        (HKEY_CURRENT_USER, 0),
+        (HKEY_LOCAL_MACHINE, 0),
+        (HKEY_LOCAL_MACHINE, KEY_WOW64_32KEY),
+    ] {
+        let mut key: HKEY = null_mut();
+        // SAFETY: valid root, null-terminated path, out-param.
+        if unsafe { RegOpenKeyExW(root, path.as_ptr(), 0, KEY_READ | flags, &mut key) } != 0 {
+            continue;
+        }
+        for i in 0..4096u32 {
+            let mut name = [0u16; 256];
+            let mut len = name.len() as u32;
+            // SAFETY: buffer of `len` wide chars.
+            let rc = unsafe {
+                RegEnumKeyExW(
+                    key,
+                    i,
+                    name.as_mut_ptr(),
+                    &mut len,
+                    null(),
+                    null_mut(),
+                    null_mut(),
+                    null_mut(),
+                )
+            };
+            if rc != 0 {
+                break;
+            }
+            let mut sub: Vec<u16> = name[..len as usize].to_vec();
+            sub.push(0);
+            if let Some(display) = read(key, &sub, "DisplayName") {
+                out.push((display, read(key, &sub, "DisplayVersion")));
+            }
+        }
+        // SAFETY: opened above.
+        unsafe { RegCloseKey(key) };
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -139,7 +139,8 @@ pub fn downloads(ctx: &DetectCtx) -> (Vec<Candidate>, HashSet<NodeId>) {
             }
         } else if INSTALLER_EXTS.contains(&ext.as_str()) {
             if age >= th.installer_days as i64 {
-                let mut c = base("downloads.installers", name, id, "Installers");
+                let installed = installed_match(&name, &ctx.installed);
+                let mut c = base("downloads.installers", name.clone(), id, "Installers");
                 c.tier = Tier::Review;
                 c.disposal = Disposal::Recycle;
                 c.comes_back = ComesBack::OnDemand;
@@ -149,6 +150,18 @@ pub fn downloads(ctx: &DetectCtx) -> (Vec<Candidate>, HashSet<NodeId>) {
                 );
                 c.if_removed = "It goes to the Recycle Bin. Download it again from the publisher if you need to reinstall.".into();
                 c.note = Some(age_phrase(ctx.now, n.modified));
+                if let Some((app, version)) = installed {
+                    let v = version
+                        .as_deref()
+                        .map(|v| format!(" {v}"))
+                        .unwrap_or_default();
+                    c.why = format!(
+                        "An installer you downloaded {}. {app}{v} is already installed on this PC, so you likely don't need it.",
+                        age_phrase(ctx.now, n.modified)
+                    );
+                    c.note = Some(format!("Installed: {app}"));
+                    c.facts.push(("Installed app".into(), format!("{app}{v}")));
+                }
                 claimed.insert(id);
                 out.push(c);
             }
@@ -380,4 +393,123 @@ pub fn recycle_bin(drives: &[PathBuf]) -> Vec<Candidate> {
         out.push(c);
     }
     out
+}
+
+const GENERIC: &[&str] = &[
+    "setup",
+    "installer",
+    "install",
+    "x64",
+    "x86",
+    "amd64",
+    "arm64",
+    "win",
+    "win64",
+    "win32",
+    "windows",
+    "user",
+    "full",
+    "latest",
+    "release",
+    "stable",
+    "msi",
+    "exe",
+    "online",
+    "offline",
+    "web",
+    "64bit",
+    "32bit",
+    "bit",
+];
+
+/// Lower-case words of a name, split on punctuation and camelCase, without versions.
+pub fn name_tokens(name: &str) -> Vec<String> {
+    let mut words = Vec::new();
+    let mut cur = String::new();
+    let mut prev_lower = false;
+    for ch in name.chars() {
+        if ch.is_alphanumeric() {
+            if ch.is_uppercase() && prev_lower && !cur.is_empty() {
+                words.push(std::mem::take(&mut cur));
+            }
+            prev_lower = ch.is_lowercase() || ch.is_ascii_digit();
+            cur.extend(ch.to_lowercase());
+        } else {
+            if !cur.is_empty() {
+                words.push(std::mem::take(&mut cur));
+            }
+            prev_lower = false;
+        }
+    }
+    if !cur.is_empty() {
+        words.push(cur);
+    }
+    // Drop versions ("3", "131", "v2").
+    words.retain(|w| {
+        let digits = |x: &str| !x.is_empty() && x.chars().all(|c| c.is_ascii_digit());
+        !(digits(w) || (w.starts_with('v') && digits(&w[1..])))
+    });
+    // Common installer-name spellings of app names.
+    for w in &mut words {
+        if w == "vscode" {
+            *w = "code".into();
+        }
+    }
+    words
+}
+
+/// The installed app an installer file most likely installed, if any: every significant word
+/// of the file name (3+ letters, not "setup"/"x64"/…) appears in the app's name.
+pub fn installed_match<'a>(
+    installer: &str,
+    apps: &'a [(String, Option<String>)],
+) -> Option<&'a (String, Option<String>)> {
+    let stem = Path::new(installer)
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let words: Vec<String> = name_tokens(&stem)
+        .into_iter()
+        .filter(|w| w.len() >= 3 && !GENERIC.contains(&w.as_str()))
+        .collect();
+    if words.is_empty() || !words.iter().any(|w| w.len() >= 4) {
+        return None;
+    }
+    apps.iter().find(|(name, _)| {
+        let have = name_tokens(name);
+        words.iter().all(|w| have.iter().any(|h| h == w))
+    })
+}
+
+#[cfg(test)]
+mod installer_tests {
+    use super::*;
+
+    #[test]
+    fn matches_installers_to_apps() {
+        let apps = vec![
+            ("Google Chrome".to_string(), Some("131.0".to_string())),
+            ("Docker Desktop".to_string(), None),
+            ("Python 3.13.0 (64-bit)".to_string(), None),
+            ("Microsoft Visual Studio Code (User)".to_string(), None),
+        ];
+        assert_eq!(
+            installed_match("ChromeSetup.exe", &apps).map(|a| a.0.as_str()),
+            Some("Google Chrome")
+        );
+        assert_eq!(
+            installed_match("Docker Desktop Installer.exe", &apps).map(|a| a.0.as_str()),
+            Some("Docker Desktop")
+        );
+        assert_eq!(
+            installed_match("python-3.13.0-amd64.exe", &apps).map(|a| a.0.as_str()),
+            Some("Python 3.13.0 (64-bit)")
+        );
+        assert_eq!(
+            installed_match("VSCodeUserSetup-x64-1.95.3.exe", &apps).map(|a| a.0.as_str()),
+            Some("Microsoft Visual Studio Code (User)")
+        );
+        assert!(installed_match("setup.exe", &apps).is_none());
+        assert!(installed_match("RandomTool-2.0.msi", &apps).is_none());
+    }
 }
