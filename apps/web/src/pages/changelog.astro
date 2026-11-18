@@ -1,0 +1,46 @@
+---
+import Base from "../layouts/Base.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import raw from "../../../../CHANGELOG.md?raw";
+
+// A tiny renderer for the changelog's own shape: "## version — title", "- item", paragraphs.
+type Block = { kind: "h2" | "p"; text: string } | { kind: "ul"; items: string[] };
+const blocks: Block[] = [];
+for (const line of raw.split("\n").slice(1)) {
+  const t = line.trim();
+  if (!t) continue;
+  if (t.startsWith("## ")) blocks.push({ kind: "h2", text: t.slice(3) });
+  else if (t.startsWith("- ")) {
+    const last = blocks.at(-1);
+    if (last && last.kind === "ul") last.items.push(t.slice(2));
+    else blocks.push({ kind: "ul", items: [t.slice(2)] });
+  } else blocks.push({ kind: "p", text: t });
+}
+---
+
+<Base title="Changelog · Pare" description="What changed in each version of Pare, the free Windows cleanup app that explains every suggestion.">
+  <Header home={false} />
+  <main id="main" tabindex="-1" class="outline-none">
+    <article class="page pb-24 pt-8 md:pt-12">
+      <div class="mx-auto max-w-[720px]">
+        <p class="m-0 text-overline uppercase text-accent-default">Changelog</p>
+        <h1 class="mb-0 mt-4 text-heading-h1 text-text-primary md:text-display-l">What's new</h1>
+        {
+          blocks.map((b) =>
+            b.kind === "h2" ? (
+              <h2 class="mb-0 mt-12 text-heading-h3 text-text-primary">{b.text}</h2>
+            ) : b.kind === "ul" ? (
+              <ul class="mb-0 mt-4 flex list-disc flex-col gap-2 pl-6 text-body-l text-text-secondary">
+                {b.items.map((i) => <li>{i}</li>)}
+              </ul>
+            ) : (
+              <p class="mb-0 mt-6 text-body-l text-text-secondary">{b.text}</p>
+            ),
+          )
+        }
+      </div>
+    </article>
+  </main>
+  <Footer />
+</Base>

@@ -12,6 +12,9 @@ import { History } from "./History";
 import { SettingsScreen } from "./Settings";
 import { Projects } from "./Projects";
 import { Browse } from "./Browse";
+import { Onboarding } from "./Onboarding";
+import { checkForUpdate, dueForCheck, markChecked, type UpdateInfo } from "../lib/updates";
+import { Button } from "@pare/ui";
 
 function sidebarScreen(s: Screen): SidebarScreen {
   switch (s.name) {
@@ -32,6 +35,17 @@ export function App() {
   const theme = useApp((s) => s.settings?.theme ?? "system");
   const go = useApp((s) => s.go);
   const [maximized, setMaximized] = useState(false);
+  const onboardingDone = useApp((s) => s.settings?.onboardingDone ?? true);
+  const checkUpdates = useApp((s) => s.settings?.checkForUpdates ?? false);
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+
+  useEffect(() => {
+    if (!checkUpdates || !dueForCheck()) return;
+    void checkForUpdate().then((r) => {
+      markChecked();
+      if (r.kind === "available") setUpdate(r.update);
+    });
+  }, [checkUpdates]);
 
   useEffect(() => {
     wireScanEvents();
@@ -68,10 +82,20 @@ export function App() {
             else go({ name: s });
           }}
         />
-        <main id="main" className="relative min-w-0 flex-1 overflow-y-auto overflow-x-hidden" tabIndex={-1}>
-          {!ready ? null : <ScreenView screen={screen} />}
+        <main id="main" className="relative flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden" tabIndex={-1}>
+          {update && (
+            <div role="status" className="flex items-center gap-3 border-b border-border-default bg-accent-subtle px-6 py-2 text-body-s text-accent-on-subtle">
+              <span className="flex-1">Pare {update.version} is available.</span>
+              <Button variant="ghost" onClick={() => setUpdate(null)}>
+                Later
+              </Button>
+              <Button onClick={() => void update.install()}>Install and restart</Button>
+            </div>
+          )}
+          <div className="min-h-0 flex-1">{!ready ? null : <ScreenView screen={screen} />}</div>
         </main>
       </div>
+      {ready && !onboardingDone && <Onboarding />}
     </div>
   );
 }

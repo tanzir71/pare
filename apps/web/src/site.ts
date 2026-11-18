@@ -4,6 +4,11 @@ import { Bell, Download, type LucideIcon } from "lucide-react";
 
 export const RELEASED = false;
 
+/** Installer size of the published release (measured: v0.1.0 local build 1.71 MiB). Shown only
+ * once RELEASED is true, because landing numbers must come from the shipped app. */
+export const DOWNLOAD_SIZE = "2 MB";
+export const downloadSizeText = RELEASED ? `A ${DOWNLOAD_SIZE} download.` : "A small download.";
+
 export const REPO_URL = "https://github.com/tanzir71/pare";
 export const RELEASES_URL = `${REPO_URL}/releases/latest`;
 /** Before the first release, "Get notified" sends people to the README's Install section (watch the repo there). */
@@ -16,7 +21,7 @@ export const download: { label: string; shortLabel: string; href: string; icon: 
 
 export const links = {
   repo: REPO_URL,
-  changelog: `${REPO_URL}/releases`,
+  changelog: `${import.meta.env.BASE_URL.replace(/\/?$/, "/")}changelog/`,
   roadmap: `${REPO_URL}/blob/main/docs/MILESTONES.md`,
   rules: `${REPO_URL}/tree/main/rules`,
   contribute: `${REPO_URL}?tab=readme-ov-file#contribute-a-cleanup-rule`,
