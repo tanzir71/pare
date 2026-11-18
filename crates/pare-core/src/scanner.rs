@@ -51,6 +51,14 @@ pub struct ScanConfig {
     pub project_roots: Vec<PathBuf>,
     /// Look for duplicate files (M5); reads file contents of same-size candidates.
     pub duplicates: bool,
+    /// Whole-drive scans read the NTFS MFT when the process is elevated (M6).
+    pub fast_mode: bool,
+    /// Indexes kept between scans (by drive root), updated from the USN journal.
+    pub index_cache: Option<
+        std::sync::Arc<
+            std::sync::Mutex<std::collections::HashMap<PathBuf, crate::index::VolumeIndex>>,
+        >,
+    >,
 }
 
 impl Default for ScanConfig {
@@ -64,6 +72,8 @@ impl Default for ScanConfig {
             rules: None,
             project_roots: Vec::new(),
             duplicates: true,
+            fast_mode: true,
+            index_cache: None,
         }
     }
 }
@@ -102,6 +112,9 @@ pub struct ScanStats {
     /// Time per phase and detector, in milliseconds.
     #[serde(default)]
     pub phases: Vec<(String, u64)>,
+    /// Drives read from the NTFS file table (fast mode) rather than walked.
+    #[serde(default)]
+    pub fast_drives: Vec<PathBuf>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -178,18 +191,16 @@ pub fn scan(
                 (env.home.join("Videos"), dup),
                 (env.home.join("Music"), dup),
             ],
-            min_bytes: cfg.thresholds.large_file_mb.saturating_mul(1_000_000),
+            min_bytes: cfg
+                .thresholds
+                .large_file_mb
+                .saturating_mul(1_000_000)
+                .min(10_000_000),
         }
     } else {
         crate::scan::walker::Keep::default()
     };
-    let tree = Walker {
-        env,
-        cancel,
-        progress,
-        keep,
-    }
-    .walk(&roots);
+    let (tree, fast_drives) = enumerate(&roots, req, cfg, env, cancel, progress, keep, &mut phases);
     phases.push(("enumerate".into(), phase_start.elapsed().as_millis() as u64));
 
     let mut result = ScanResult {
@@ -482,6 +493,7 @@ pub fn scan(
         bytes_seen: snap.bytes_seen,
         elapsed_ms: snap.elapsed_ms,
         phases,
+        fast_drives,
     };
     result.finished = now_ms();
     progress.set_phase(if result.cancelled {
@@ -607,4 +619,118 @@ pub fn scan_projects_only(
         }
     }
     (projects, findings)
+}
+
+/// Enumerate roots: drive roots use the MFT index when fast mode is possible, everything else
+/// (and every failure) falls back to the walker.
+#[allow(clippy::too_many_arguments)]
+fn enumerate(
+    roots: &[PathBuf],
+    req: &ScanRequest,
+    cfg: &ScanConfig,
+    env: &Env,
+    cancel: &AtomicBool,
+    progress: &Progress,
+    keep: crate::scan::walker::Keep,
+    phases: &mut Vec<(String, u64)>,
+) -> (Tree, Vec<PathBuf>) {
+    let mut fast_trees = Vec::new();
+    let mut fast_drives = Vec::new();
+    let mut walk_roots = Vec::new();
+    for r in roots {
+        let is_drive_root = r.parent().is_none() || r.components().count() <= 2;
+        if req.whole_drives
+            && cfg.fast_mode
+            && is_drive_root
+            && crate::index::fast_mode_available(r)
+        {
+            let t = std::time::Instant::now();
+            match fast_index(r, cfg, env) {
+                Ok((idx, how)) => {
+                    let mut files = 0u64;
+                    let tree = crate::index::to_tree(&idx, &keep, env, &mut files);
+                    progress.files.fetch_add(files, Ordering::Relaxed);
+                    progress.bytes_seen.fetch_add(
+                        tree.roots
+                            .first()
+                            .map(|x| tree.node(x.node).sub_allocated)
+                            .unwrap_or(0),
+                        Ordering::Relaxed,
+                    );
+                    phases.push((
+                        format!("{} {how}", r.display()),
+                        t.elapsed().as_millis() as u64,
+                    ));
+                    fast_trees.push(tree);
+                    fast_drives.push(r.clone());
+                    if let Some(cache) = &cfg.index_cache {
+                        if let Ok(mut c) = cache.lock() {
+                            c.insert(r.clone(), idx);
+                        }
+                    }
+                    continue;
+                }
+                Err(e) => {
+                    tracing::warn!(root = %r.display(), %e, "fast mode failed; walking instead")
+                }
+            }
+        }
+        walk_roots.push(r.clone());
+    }
+    let walked = Walker {
+        env,
+        cancel,
+        progress,
+        keep,
+    }
+    .walk(&walk_roots);
+    if fast_trees.is_empty() {
+        return (walked, fast_drives);
+    }
+    fast_trees.push(walked);
+    (crate::index::merge_trees(fast_trees), fast_drives)
+}
+
+/// Get an up-to-date index for a drive: the cached one caught up from the USN journal, the
+/// saved one from disk, or a fresh MFT read.
+#[cfg(windows)]
+fn fast_index(
+    root: &PathBuf,
+    cfg: &ScanConfig,
+    env: &Env,
+) -> Result<(crate::index::VolumeIndex, &'static str), String> {
+    use crate::index::{db_path, mft, store};
+    let cached = cfg
+        .index_cache
+        .as_ref()
+        .and_then(|c| c.lock().ok().and_then(|mut m| m.remove(root)));
+    let serial = platform::volume_serial(root).unwrap_or(0);
+    let from_disk = || {
+        store::load(&db_path(env, serial))
+            .ok()
+            .filter(|i| i.root == *root)
+    };
+    if let Some(mut idx) = cached.or_else(from_disk) {
+        if mft::update(&mut idx).is_ok() {
+            return Ok((idx, "index + USN journal"));
+        }
+    }
+    let idx = mft::build(root)?;
+    let save = idx.clone();
+    let path = db_path(env, serial);
+    std::thread::spawn(move || {
+        if let Err(e) = store::save(&save, &path) {
+            tracing::warn!(%e, "couldn't save the index");
+        }
+    });
+    Ok((idx, "MFT"))
+}
+
+#[cfg(not(windows))]
+fn fast_index(
+    _root: &PathBuf,
+    _cfg: &ScanConfig,
+    _env: &Env,
+) -> Result<(crate::index::VolumeIndex, &'static str), String> {
+    Err("fast mode is Windows-only".into())
 }

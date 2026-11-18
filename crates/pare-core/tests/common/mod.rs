@@ -58,6 +58,8 @@ impl FakeHome {
             rules: None,
             project_roots: Vec::new(),
             duplicates: true,
+            fast_mode: false,
+            index_cache: None,
         }
     }
 

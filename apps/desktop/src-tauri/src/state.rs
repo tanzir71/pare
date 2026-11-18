@@ -17,6 +17,11 @@ pub struct AppState {
     pub cleaning: AtomicBool,
     /// The last Projects-tab scan: projects, their artifact findings, and when it started.
     pub projects: Mutex<Option<ProjectsSlot>>,
+    /// Items picked in Browse, as findings (so cleaning goes through the same safety pass).
+    pub browse: Mutex<Vec<(i64, pare_core::Finding)>>,
+    /// Fast-mode drive indexes, kept between scans and caught up from the USN journal.
+    pub indexes:
+        Arc<Mutex<std::collections::HashMap<std::path::PathBuf, pare_core::index::VolumeIndex>>>,
 }
 
 pub struct ProjectsSlot {
@@ -53,6 +58,8 @@ impl AppState {
             scan: Mutex::new(ScanSlot::default()),
             cleaning: AtomicBool::new(false),
             projects: Mutex::new(None),
+            browse: Mutex::new(Vec::new()),
+            indexes: Arc::new(Mutex::new(std::collections::HashMap::new())),
         }
     }
 }

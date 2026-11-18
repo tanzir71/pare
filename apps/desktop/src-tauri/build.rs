@@ -21,6 +21,10 @@ const COMMANDS: &[&str] = &[
     "open_in_explorer",
     "projects_list",
     "projects_scan",
+    "browse_view",
+    "browse_kind_files",
+    "browse_item",
+    "relaunch_elevated",
 ];
 
 fn main() {

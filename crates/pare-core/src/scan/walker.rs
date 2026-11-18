@@ -19,6 +19,7 @@ struct DirResult {
     subdirs: Vec<(RawEntry, DirResult)>,
     error: bool,
     folded: (u32, u64, u64, i64),
+    kinds: super::kinds::KindTotals,
 }
 
 /// Which files become tree nodes. Directories are always kept.
@@ -106,6 +107,7 @@ impl Walker<'_> {
             let mut queue: VecDeque<(u32, DirResult)> = VecDeque::new();
             queue.push_back((root_id, result));
             while let Some((id, r)) = queue.pop_front() {
+                super::kinds::merge(&mut tree.kinds, &r.kinds);
                 if r.error {
                     tree.nodes[id as usize].leaf = Leaf::Error;
                 }
@@ -170,6 +172,7 @@ impl Walker<'_> {
         let mut bytes = 0u64;
         let mut files = 0u64;
         let mut folded = (0u32, 0u64, 0u64, 0i64);
+        let mut kinds = super::kinds::KindTotals::default();
         for e in entries {
             if e.is_dir {
                 if !e.is_traversable_dir() {
@@ -185,6 +188,7 @@ impl Walker<'_> {
             } else {
                 files += 1;
                 bytes += e.allocated;
+                super::kinds::add(&mut kinds, super::kinds::FileKind::of(&e.name), e.allocated);
                 if e.logical >= keep_min {
                     leaves.push((e, Leaf::No));
                 } else {
@@ -209,6 +213,7 @@ impl Walker<'_> {
             subdirs,
             error: false,
             folded,
+            kinds,
         }
     }
 }

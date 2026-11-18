@@ -36,6 +36,7 @@ pub struct AppInfo {
     platform: String,
     log_dir: PathBuf,
     settings_path: PathBuf,
+    elevated: bool,
 }
 
 #[tauri::command]
@@ -51,6 +52,7 @@ pub fn app_info(state: State<'_, AppState>) -> AppInfo {
             .map(|p| p.to_path_buf())
             .unwrap_or_default(),
         settings_path: state.env.settings_path(),
+        elevated: platform::is_elevated(),
     }
 }
 
@@ -158,6 +160,8 @@ fn config_from(settings: &Settings, rules: Arc<pare_core::rules::RuleSet>) -> Sc
         rules: Some(rules),
         project_roots: Vec::new(),
         duplicates: true,
+        fast_mode: true,
+        index_cache: None,
     }
 }
 
@@ -211,6 +215,7 @@ pub fn scan_start(
     let settings = state.settings.lock().map_err(err)?.clone();
     let mut cfg = config_from(&settings, state.rules.clone());
     cfg.project_roots = project_roots(&settings, &state.env);
+    cfg.index_cache = Some(state.indexes.clone());
     let done = Arc::new(AtomicBool::new(false));
 
     // Progress sampler: 4 events per second, independent of the walker.
@@ -406,6 +411,14 @@ pub fn clean(app: AppHandle, state: State<'_, AppState>, ids: Vec<String>) -> Cm
                 scan_started = scan_started.min(p.started);
             }
             findings.extend(f);
+        }
+    }
+    if let Ok(b) = state.browse.lock() {
+        for (started, f) in b.iter() {
+            if ids.contains(&f.id) && !findings.iter().any(|x| x.id == f.id) {
+                scan_started = scan_started.min(*started);
+                findings.push(f.clone());
+            }
         }
     }
     if findings.is_empty() {
@@ -689,4 +702,230 @@ pub async fn projects_scan(app: AppHandle) -> CmdResult<ProjectsView> {
     })
     .await
     .map_err(err)?
+}
+
+// ---------- Browse (M6) ----------
+
+use pare_core::scan::kinds::FileKind;
+use pare_core::scan::tree::{Leaf, NodeId, Tree};
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowseChild {
+    name: String,
+    path: PathBuf,
+    bytes: u64,
+    files: u64,
+    is_dir: bool,
+    kind: Option<FileKind>,
+    /// "none", "link", "excluded" or "error"
+    leaf: &'static str,
+    modified: Timestamp,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KindView {
+    kind: FileKind,
+    label: &'static str,
+    bytes: u64,
+    files: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowseView {
+    path: PathBuf,
+    name: String,
+    bytes: u64,
+    files: u64,
+    children: Vec<BrowseChild>,
+    /// Smaller files in this folder that aren't listed one by one.
+    folded_bytes: u64,
+    folded_files: u64,
+    roots: Vec<BrowseChild>,
+    whole_drive: bool,
+    fast_drives: Vec<PathBuf>,
+    kinds: Vec<KindView>,
+    scanned: Timestamp,
+}
+
+fn leaf_name(l: Leaf) -> &'static str {
+    match l {
+        Leaf::No => "none",
+        Leaf::Link => "link",
+        Leaf::Excluded => "excluded",
+        Leaf::Error => "error",
+    }
+}
+
+fn child_of(tree: &Tree, id: NodeId) -> BrowseChild {
+    let n = tree.node(id);
+    BrowseChild {
+        name: if n.name.is_empty() {
+            tree.path(id).to_string_lossy().into_owned()
+        } else {
+            n.name.to_string_lossy().into_owned()
+        },
+        path: tree.path(id),
+        bytes: n.sub_allocated,
+        files: n.sub_files,
+        is_dir: n.is_dir,
+        kind: if n.is_dir {
+            None
+        } else {
+            Some(FileKind::of(&n.name))
+        },
+        leaf: leaf_name(n.leaf),
+        modified: n.sub_newest,
+    }
+}
+
+/// A folder of the last scan's tree (the first root when `path` is empty).
+#[tauri::command]
+pub fn browse_view(state: State<'_, AppState>, path: Option<PathBuf>) -> CmdResult<BrowseView> {
+    with_output(&state, |out| {
+        let tree = &out.tree;
+        let id = path
+            .as_ref()
+            .and_then(|p| tree.find(p))
+            .or_else(|| tree.roots.first().map(|r| r.node))
+            .ok_or("Nothing scanned yet.")?;
+        let n = tree.node(id);
+        let mut children: Vec<BrowseChild> = tree.children(id).map(|c| child_of(tree, c)).collect();
+        children.sort_by_key(|c| std::cmp::Reverse(c.bytes));
+        Ok(BrowseView {
+            path: tree.path(id),
+            name: child_of(tree, id).name,
+            bytes: n.sub_allocated,
+            files: n.sub_files,
+            children,
+            folded_bytes: n.folded_allocated,
+            folded_files: n.folded_files as u64,
+            roots: tree.roots.iter().map(|r| child_of(tree, r.node)).collect(),
+            whole_drive: out
+                .result
+                .roots
+                .iter()
+                .any(|r| r.path.parent().is_none() || r.path.components().count() <= 2),
+            fast_drives: out.result.stats.fast_drives.clone(),
+            kinds: FileKind::ALL
+                .iter()
+                .map(|k| KindView {
+                    kind: *k,
+                    label: k.label(),
+                    bytes: tree.kinds[k.index()].bytes,
+                    files: tree.kinds[k.index()].files,
+                })
+                .filter(|k| k.files > 0)
+                .collect(),
+            scanned: out.result.finished,
+        })
+    })?
+}
+
+/// The largest listed files of one type (files under 10 MB are counted, not listed, in whole-drive scans).
+#[tauri::command]
+pub fn browse_kind_files(
+    state: State<'_, AppState>,
+    kind: FileKind,
+) -> CmdResult<Vec<BrowseChild>> {
+    with_output(&state, |out| {
+        let tree = &out.tree;
+        let mut v: Vec<BrowseChild> = tree
+            .nodes
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| !n.is_dir && FileKind::of(&n.name) == kind)
+            .map(|(i, _)| child_of(tree, i as NodeId))
+            .collect();
+        v.sort_by_key(|c| std::cmp::Reverse(c.bytes));
+        v.truncate(200);
+        v
+    })
+}
+
+/// Turn one Browse item into a finding (Review, Recycle Bin) after the usual safety checks.
+#[tauri::command]
+pub fn browse_item(state: State<'_, AppState>, path: PathBuf) -> CmdResult<Finding> {
+    let (f, started) = with_output(&state, |out| -> Result<(Finding, i64), String> {
+        let tree = &out.tree;
+        let id = tree
+            .find(&path)
+            .ok_or("That item isn't in the last scan.")?;
+        let n = tree.node(id);
+        let mut c = pare_core::scan::measure::Candidate::new(
+            "browse.manual",
+            CategoryId::LargeFiles,
+            n.name.to_string_lossy().into_owned(),
+        );
+        c.nodes = vec![id];
+        c.source = "Browse".into();
+        c.source_path = path.parent().map(|p| p.to_path_buf());
+        c.tier = Tier::Review;
+        c.disposal = Disposal::Recycle;
+        c.comes_back = pare_core::ComesBack::No;
+        c.why = "You picked this in Browse.".into();
+        c.if_removed =
+            "It goes to the Recycle Bin, so you can restore it until the bin is emptied.".into();
+        if n.leaf != Leaf::No {
+            return Err("Pare doesn't remove system folders or links from Browse.".into());
+        }
+        let (mut f, probe) = pare_core::scan::measure::measure(c, tree);
+        let settings = state.settings.lock().map_err(err)?.clone();
+        let mut opts = pare_core::safety::SafetyOptions::new(pare_core::platform::now_ms());
+        opts.exclusions = settings.exclusions.clone();
+        pare_core::safety::assess(&mut f, &probe, &state.env, &opts);
+        if !f.tier.is_protected() {
+            let held = pare_core::safety::holders_batch(std::slice::from_ref(&probe.recent_files));
+            if let Some(h) = held.into_iter().next() {
+                pare_core::safety::apply_in_use(&mut f, h);
+            }
+        }
+        Ok((f, out.result.started))
+    })??;
+    let mut b = state.browse.lock().map_err(err)?;
+    b.retain(|(_, x)| x.id != f.id);
+    b.push((started, f.clone()));
+    Ok(f)
+}
+
+/// Relaunch Pare elevated for fast mode (Windows asks the user first).
+#[tauri::command]
+pub fn relaunch_elevated(app: AppHandle) -> CmdResult<()> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::UI::Shell::ShellExecuteW;
+        use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+        let exe = std::env::current_exe().map_err(err)?;
+        let w = |s: &std::ffi::OsStr| {
+            s.encode_wide()
+                .chain(std::iter::once(0))
+                .collect::<Vec<u16>>()
+        };
+        let verb = w(std::ffi::OsStr::new("runas"));
+        let file = w(exe.as_os_str());
+        // SAFETY: null-terminated wide strings that outlive the call.
+        let r = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                verb.as_ptr(),
+                file.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                SW_SHOWNORMAL,
+            )
+        };
+        if (r as isize) <= 32 {
+            return Err("Pare wasn't restarted (the administrator prompt was cancelled).".into());
+        }
+        app.exit(0);
+        Ok(())
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+        Err("Fast mode is Windows-only.".into())
+    }
 }
