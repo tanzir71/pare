@@ -109,6 +109,12 @@ export function History({ op }: { op?: string }) {
                   <p className="truncate text-body-m-strong">{it.title}</p>
                   <p className="truncate font-mono text-mono-s text-text-tertiary">{it.path}</p>
                   {it.error && <p className="truncate text-caption text-keep-fg">{it.error}</p>}
+                  {it.output && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-caption text-text-secondary">Tool output</summary>
+                      <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-bg-subtle p-2 font-mono text-mono-s text-text-secondary">{it.output}</pre>
+                    </details>
+                  )}
                 </div>
                 <span className="text-caption text-text-tertiary">{DISPOSAL_LABEL[it.disposal] ?? it.disposal}</span>
                 <Badge tone={b.tone}>{b.label}</Badge>

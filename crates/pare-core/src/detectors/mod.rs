@@ -1,6 +1,9 @@
 //! Detectors propose [`Candidate`]s from the scan tree. Quick detectors are hard-coded (M2);
 //! the rule engine (M3) and built-in detectors for logic TOML can't express live alongside.
 
+pub mod claude;
+pub mod codex;
+pub mod ollama;
 pub mod quick;
 
 use serde::{Deserialize, Serialize};

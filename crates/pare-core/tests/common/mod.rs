@@ -55,6 +55,7 @@ impl FakeHome {
             check_in_use: true,
             include_recycle_bin: false,
             now: None,
+            rules: None,
         }
     }
 

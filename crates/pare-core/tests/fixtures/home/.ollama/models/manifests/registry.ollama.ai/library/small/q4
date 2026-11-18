@@ -1,0 +1,1 @@
+{"schemaVersion":2,"config":{"digest":"sha256:cfg2","size":10},"layers":[{"digest":"sha256:bbb","size":4000},{"digest":"sha256:shared","size":5000}]}

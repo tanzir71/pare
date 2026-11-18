@@ -19,4 +19,4 @@ requires_closed = true
 comes_back = "automatically"
 why = "Copies of web pages and scripts the browser keeps to load sites faster."
 if_removed = "Sites load a little slower the first time. You stay signed in."
-verified = false
+verified = true

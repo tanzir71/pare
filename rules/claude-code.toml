@@ -21,7 +21,7 @@ disposal = "delete"
 comes_back = "automatically"
 why = "Diagnostic logs Claude Code writes while it runs. They can grow to several GB."
 if_removed = "Old debug output is gone. Claude Code keeps working and writes new logs."
-verified = false
+verified = true
 sources = ["https://github.com/anthropics/claude-code/issues/11646", "https://claudeissues.com/issue/24486-feature-add-automatic-garbage-collection-for-claude-cache-directories"]
 
 [[rule]]
@@ -34,7 +34,7 @@ disposal = "recycle"
 comes_back = "no"
 why = "These session transcripts belong to project folders that no longer exist on this PC."
 if_removed = "You can't resume those old sessions. Current projects are unaffected."
-verified = false
+verified = true
 sources = ["https://github.com/anthropics/claude-code/issues/24207"]
 
 [[rule]]
@@ -47,7 +47,7 @@ disposal = "recycle"
 comes_back = "no"
 why = "Old conversation transcripts. Claude Code's own cleanupPeriodDays setting controls how long it keeps them."
 if_removed = "You can't resume or review these sessions."
-verified = false
+verified = true
 sources = ["https://bestagent.dev/claude-code-disk-usage-cleanup"]
 
 [[rule]]
@@ -60,7 +60,7 @@ disposal = "recycle"
 comes_back = "no"
 why = "Snapshots Claude Code keeps so it can rewind edits in past sessions."
 if_removed = "You can't rewind edits from those old sessions."
-verified = false
+verified = true
 sources = ["https://claudeissues.com/issue/24486-feature-add-automatic-garbage-collection-for-claude-cache-directories"]
 
 [[rule]]
@@ -72,7 +72,7 @@ disposal = "delete"
 comes_back = "on-demand"
 why = "Downloaded plugin archives and temporary paste data."
 if_removed = "Claude Code downloads or recreates them when needed."
-verified = false
+verified = true
 sources = ["https://usekudu.com/cleaners/claude-code-cache"]
 
 [[rule]]
@@ -85,5 +85,5 @@ disposal = "delete"
 comes_back = "on-demand"
 why = "Older builds left behind by the native installer's auto-update."
 if_removed = "Nothing changes; the current version stays."
-verified = false   # path confirmed on macOS by other cleaners; check the Windows layout
+verified = false   # native-installer layout; not present on an npm-installed Claude Code (Nov 2026 check)
 sources = ["https://mole.fit/blog/how-to-clean-up-ai-coding-tools-mac"]

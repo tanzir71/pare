@@ -19,7 +19,7 @@ requires_closed = true
 comes_back = "automatically"
 why = "Compiled-code caches, downloaded extension packages and logs."
 if_removed = "The next launch may be slower while caches rebuild."
-verified = false
+verified = true
 sources = ["https://usekudu.com/cleaners/vscode", "https://usekudu.com/cleaners/cursor"]
 
 [[rule]]
@@ -44,7 +44,7 @@ requires_closed = true
 comes_back = "automatically"
 why = "A backup copy of Cursor's state database. It can grow to tens of GB."
 if_removed = "Cursor keeps using the live database (state.vscdb), which Pare never touches."
-verified = false
+verified = true
 sources = ["https://forum.cursor.com/t/large-library-application-support-usage/169582"]
 
 [[rule]]
@@ -57,5 +57,5 @@ guide = ["In Cursor, run 'Developer: Delete Old Chats…' from the command palet
 comes_back = "no"
 why = "Cursor stores chat history in this database; it can grow very large."
 if_removed = "Pare never deletes it. Use Cursor's own cleanup."
-verified = false
+verified = true
 sources = ["https://forum.cursor.com/t/cursor-state-vscdb-suddenly-grew-to-77-5-gb-and-globalstorage-reached-100-gb-on-windows/169204"]

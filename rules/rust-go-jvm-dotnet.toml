@@ -16,7 +16,7 @@ disposal = "delete"
 comes_back = "on-demand"
 why = "Crate downloads and extracted sources."
 if_removed = "Cargo downloads crates again on the next build."
-verified = false
+verified = true
 
 [[rule]]
 id = "go.build-cache"
@@ -41,7 +41,7 @@ requires_closed = true
 comes_back = "on-demand"
 why = "Downloaded dependencies, build caches and Gradle distributions."
 if_removed = "Gradle downloads what it needs on the next build."
-verified = false
+verified = true
 
 [[rule]]
 id = "maven.repository"
@@ -52,7 +52,7 @@ disposal = "recycle"
 comes_back = "on-demand"
 why = "Downloaded Java dependencies, plus anything installed locally with 'mvn install'."
 if_removed = "Builds re-download dependencies; locally installed snapshots are lost."
-verified = false
+verified = true
 
 [[rule]]
 id = "nuget.http-cache"
@@ -63,7 +63,7 @@ disposal = "delete"
 comes_back = "on-demand"
 why = "Cached NuGet feed responses and scratch files."
 if_removed = "NuGet fetches them again on restore."
-verified = false
+verified = true
 
 [[rule]]
 id = "nuget.packages"
@@ -75,4 +75,4 @@ command = ["dotnet", "nuget", "locals", "global-packages", "--clear"]
 comes_back = "on-demand"
 why = "Every package version restored by .NET projects."
 if_removed = "The next restore downloads the packages again (can be slow)."
-verified = false
+verified = true

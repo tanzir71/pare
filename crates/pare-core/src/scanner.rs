@@ -45,6 +45,8 @@ pub struct ScanConfig {
     pub include_recycle_bin: bool,
     /// Override "now" (tests).
     pub now: Option<Timestamp>,
+    /// Cleanup rules (M3). `None` runs only the quick detectors.
+    pub rules: Option<std::sync::Arc<crate::rules::RuleSet>>,
 }
 
 impl Default for ScanConfig {
@@ -55,6 +57,7 @@ impl Default for ScanConfig {
             check_in_use: true,
             include_recycle_bin: true,
             now: None,
+            rules: None,
         }
     }
 }
@@ -200,7 +203,44 @@ pub fn scan(
 
     // Downloads claims nodes that "large files" must not repeat, so it runs first.
     let claimed = std::sync::Mutex::new(std::collections::HashSet::new());
-    let mut detectors: Vec<Detector> = vec![
+    let mut detectors: Vec<Detector> = Vec::new();
+    let rule_roots: Vec<PathBuf> = roots.clone();
+    let drives_for_rules: Vec<PathBuf> = if env.is_fake {
+        Vec::new()
+    } else {
+        platform::list_drives().into_iter().filter(|d| d.is_fixed).map(|d| d.root).collect()
+    };
+    let elevated = platform::is_elevated();
+    if let Some(set) = cfg.rules.clone() {
+        for (id, label, cat) in [
+            ("junk", "Junk & temp files", CategoryId::Junk),
+            ("ai-tools", "AI tool caches", CategoryId::AiTools),
+            ("dev-caches", "Developer caches", CategoryId::DevCaches),
+            ("browsers", "Browser caches", CategoryId::Browsers),
+        ] {
+            let set = set.clone();
+            let rule_roots = rule_roots.clone();
+            let drives = drives_for_rules.clone();
+            let whole = req.whole_drives;
+            let recent_ms = cfg.thresholds.recent_hours as i64 * MS_PER_HOUR;
+            detectors.push((
+                id,
+                label,
+                Box::new(move |c: &DetectCtx| {
+                    let ctx = crate::rules::engine::RuleCtx {
+                        env: c.env,
+                        now: c.now,
+                        recent_ms,
+                        drives: &drives,
+                        elevated,
+                        within: if whole { None } else { Some(&rule_roots) },
+                    };
+                    crate::rules::engine::run_category(&set, &ctx, cat)
+                }),
+            ));
+        }
+    }
+    detectors.extend::<Vec<Detector>>(vec![
         (
             "downloads",
             "Downloads",
@@ -220,7 +260,7 @@ pub fn scan(
             "Empty folders",
             Box::new(quick::empty_folders),
         ),
-    ];
+    ]);
     if cfg.include_recycle_bin && !env.is_fake {
         let drives = req.drives.clone();
         detectors.push((

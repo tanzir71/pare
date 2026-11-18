@@ -1,11 +1,17 @@
 # Claude desktop app (Electron). Installs may be classic (%APPDATA%\Claude) or MSIX
 # (%LOCALAPPDATA%\Packages\Claude_pzs8sxrjxfjjc\LocalCache\...). Match both.
+# Newer versions keep everything in %LOCALAPPDATA%\Claude-Data\claude_<id>\. The app's own
+# README there says nothing inside may be deleted by hand, so Pare only shows a guide for it
+# and never touches the folder (verified on Windows 11, Nov 2026).
 
 [tool]
 id = "claude-desktop"
 name = "Claude desktop app"
 category = "ai-tools"
 processes = ["claude.exe", "vmwp.exe"]
+
+[[protect]]
+paths = ["%LOCALAPPDATA%/Claude-Data/**"]
 
 [[rule]]
 id = "claude-desktop.electron-cache"
@@ -47,3 +53,17 @@ why = "The Linux VM image the desktop app uses for its agentic workspace feature
 if_removed = "Those features re-download the image on next use."
 verified = false
 sources = ["https://claudeissues.com/issue/29986-bug-cowork-vm-bundles-in-appdata-roaming-cause-windows-explorer-freeze-when-navi", "https://claudeissues.com/issue/25013-bug-claude-desktop-leaves-10gb-of-data-in-appdata-after-uninstall"]
+
+[[rule]]
+id = "claude-desktop.app-data-guide"
+title = "Claude desktop app data"
+paths = ["%LOCALAPPDATA%/Claude-Data/*"]
+tier = "review"
+disposal = "guide"
+guide = ["Open Claude and go to Settings → This computer → System → Storage.", "If your version has no Storage setting, use Help → Troubleshooting → Clear Cache and Restart."]
+comes_back = "on-demand"
+why = "The Claude desktop app keeps its caches, VM image and Cowork session files here. It can grow to many GB."
+if_removed = "Pare never deletes it: the app warns that removing files by hand can lose settings, sign-in and tasks. Use the app's own Storage settings."
+verified = true
+sources = ["%LOCALAPPDATA%/Claude-Data/README.txt (written by the Claude desktop app)"]
+
