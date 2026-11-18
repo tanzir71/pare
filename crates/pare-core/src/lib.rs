@@ -9,6 +9,7 @@ pub mod env;
 pub mod format;
 pub mod history;
 pub mod platform;
+pub mod projects;
 pub mod rules;
 pub mod safety;
 pub mod scan;

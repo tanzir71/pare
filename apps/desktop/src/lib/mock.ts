@@ -11,6 +11,8 @@ import type {
   Drive,
   Finding,
   HistoryDetail,
+  Project,
+  ProjectsView,
   HistoryOp,
   ScanSummary,
   Settings,
@@ -182,6 +184,25 @@ let settings: Settings = {
   cachesToRecycleBin: false, purgePareItemsAfterDays: 30, hiddenCards: [], checkForUpdates: false, onboardingDone: false, language: "en",
 };
 
+function mockProjects(): ProjectsView {
+  const mk = (name: string, root: string, status: Project["status"], days: number, branch: string, commits: number, arts: string[], gb: number, extra: Partial<Project["git"] & object> = {}): [Project, Finding | null] => {
+    const tier: Finding["tier"] = status === "clean-pushed" ? SAFE : status === "uncommitted" || status === "active" ? { kind: "protected", reason: status === "active" ? "in-use" : "uncommitted" } : REVIEW;
+    const git = { repo: root, branch, lastCommit: now - days * DAY, commits, dirty: status === "uncommitted", dirtyFiles: status === "uncommitted" ? 4 : 0, ahead: status === "unpushed" ? 2 : 0, hasRemote: status !== "no-remote", hasUpstream: status !== "no-remote", stashes: 0, detached: false, ...extra };
+    const finding = arts.length ? f("project-build", "D:\\code", name, `${root}\\${arts[0]}`, gb * GB, tier, DEL, { comesBack: "on-demand", git, badge: status, facts: [["Build files", arts.join(", ")], ["Rebuild with", arts.includes("target") ? "cargo build" : "npm install / pnpm install / yarn"]] }) : null;
+    return [{ root, name, git, status, lastChange: now - days * DAY, idleDays: days, ecosystems: [], rebuild: [], artifacts: arts.map((a) => ({ name: a, path: `${root}\\${a}`, bytes: (gb * GB) / arts.length, ecosystem: "node" })), bytes: gb * GB, tier, findingId: finding?.id ?? null, parent: null }, finding];
+  };
+  const rows = [
+    mk("weather-dashboard", "D:\\code\\weather-dashboard", "clean-pushed", 240, "main", 214, ["node_modules", ".next"], 1.8),
+    mk("rust-raytracer", "D:\\code\\rust-raytracer", "clean-pushed", 330, "main", 96, ["target"], 4.2),
+    mk("tauri-playground", "D:\\code\\experiments\\tauri-playground", "clean-pushed", 180, "dev", 41, ["target", "node_modules"], 2.9),
+    mk("ml-sandbox", "D:\\code\\ml-sandbox", "unpushed", 150, "main", 12, [".venv", "__pycache__"], 2.6),
+    mk("old-portfolio", "C:\\Users\\ana\\Desktop\\old-portfolio", "no-remote", 730, "master", 30, ["node_modules"], 0.6),
+    mk("client-portal", "D:\\code\\client-portal", "uncommitted", 3, "feat/auth", 120, ["node_modules"], 1.1),
+    mk("pare", "D:\\code\\pare", "active", 0, "main", 80, ["target", "node_modules"], 3.4),
+  ];
+  return { checked: now - 120_000, roots: ["D:\\code", "C:\\Users\\ana\\Desktop"], projects: rows.map((r) => r[0]), findings: rows.flatMap((r) => (r[1] ? [r[1]] : [])) };
+}
+
 let summary: ScanSummary | null = null;
 const history: HistoryDetail[] = [];
 let scanSeq = 0;
@@ -331,6 +352,9 @@ export const mockBackend: Backend = {
         return r(settings);
       case "open_in_explorer":
         return r(undefined);
+      case "projects_list":
+      case "projects_scan":
+        return r(mockProjects());
       default:
         throw new Error(`mock: unknown command ${cmd}`);
     }

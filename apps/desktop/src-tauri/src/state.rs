@@ -15,6 +15,15 @@ pub struct AppState {
     pub settings: Mutex<Settings>,
     pub scan: Mutex<ScanSlot>,
     pub cleaning: AtomicBool,
+    /// The last Projects-tab scan: projects, their artifact findings, and when it started.
+    pub projects: Mutex<Option<ProjectsSlot>>,
+}
+
+pub struct ProjectsSlot {
+    pub started: i64,
+    pub roots: Vec<std::path::PathBuf>,
+    pub projects: Vec<pare_core::projects::Project>,
+    pub findings: Vec<pare_core::Finding>,
 }
 
 #[derive(Default)]
@@ -31,7 +40,9 @@ pub struct ScanSlot {
 impl AppState {
     pub fn new(env: Env) -> AppState {
         let settings = Settings::load(&env);
-        let rules = Arc::new(pare_core::rules::RuleSet::with_user_rules(&env.user_rules_dir()));
+        let rules = Arc::new(pare_core::rules::RuleSet::with_user_rules(
+            &env.user_rules_dir(),
+        ));
         for w in &rules.warnings {
             tracing::warn!(%w, "user rule ignored");
         }
@@ -41,6 +52,7 @@ impl AppState {
             settings: Mutex::new(settings),
             scan: Mutex::new(ScanSlot::default()),
             cleaning: AtomicBool::new(false),
+            projects: Mutex::new(None),
         }
     }
 }

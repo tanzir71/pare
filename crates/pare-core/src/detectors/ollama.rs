@@ -22,7 +22,10 @@ struct Manifest {
 /// their prefix (`hf.co/user/model:tag`).
 pub fn model_name(manifests_dir: &Path, file: &Path) -> Option<String> {
     let rel = file.strip_prefix(manifests_dir).ok()?;
-    let parts: Vec<String> = rel.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
+    let parts: Vec<String> = rel
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+        .collect();
     if parts.len() < 3 {
         return None;
     }
@@ -40,7 +43,9 @@ fn files_under(dir: &Path, out: &mut Vec<(PathBuf, platform::RawEntry)>, depth: 
     if depth > 8 {
         return;
     }
-    let Ok(children) = platform::list_dir(dir) else { return };
+    let Ok(children) = platform::list_dir(dir) else {
+        return;
+    };
     for c in children {
         let p = dir.join(&c.name);
         if c.is_traversable_dir() {
@@ -54,8 +59,12 @@ fn files_under(dir: &Path, out: &mut Vec<(PathBuf, platform::RawEntry)>, depth: 
 pub fn models(w: &Walker, base: &Base, matches: &[Match]) -> Vec<Candidate> {
     let mut out = Vec::new();
     for m in matches {
-        let Match::Contents(manifests_dir) = m else { continue };
-        let Some(models_dir) = manifests_dir.parent() else { continue };
+        let Match::Contents(manifests_dir) = m else {
+            continue;
+        };
+        let Some(models_dir) = manifests_dir.parent() else {
+            continue;
+        };
         let mut files = Vec::new();
         files_under(manifests_dir, &mut files, 0);
         let mut manifests: Vec<Manifest> = Vec::new();
@@ -63,9 +72,15 @@ pub fn models(w: &Walker, base: &Base, matches: &[Match]) -> Vec<Candidate> {
             if e.is_cloud_placeholder() || e.logical > 1_000_000 {
                 continue;
             }
-            let Some(name) = model_name(manifests_dir, &p) else { continue };
-            let Ok(text) = std::fs::read_to_string(&p) else { continue };
-            let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else { continue };
+            let Some(name) = model_name(manifests_dir, &p) else {
+                continue;
+            };
+            let Ok(text) = std::fs::read_to_string(&p) else {
+                continue;
+            };
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) else {
+                continue;
+            };
             let mut digests = Vec::new();
             if let Some(d) = v.pointer("/config/digest").and_then(|d| d.as_str()) {
                 digests.push(d.to_string());
@@ -126,7 +141,10 @@ pub fn models(w: &Walker, base: &Base, matches: &[Match]) -> Vec<Candidate> {
             cand.comes_back = w.rule.comes_back;
             cand.why = w.rule.why.clone();
             cand.if_removed = w.rule.if_removed.clone();
-            cand.note = Some(format!("Pulled {}", crate::format::age_phrase(w.ctx.now, mf.modified)));
+            cand.note = Some(format!(
+                "Pulled {}",
+                crate::format::age_phrase(w.ctx.now, mf.modified)
+            ));
             cand.facts.push(("Model".into(), mf.name.clone()));
             cand.facts.push(("Rule".into(), w.rule.id.clone()));
             let mut dates = Dates::default();
@@ -152,8 +170,17 @@ mod tests {
     #[test]
     fn names() {
         let m = Path::new("/x/models/manifests");
-        assert_eq!(model_name(m, &m.join("registry.ollama.ai/library/llama3/8b")).as_deref(), Some("llama3:8b"));
-        assert_eq!(model_name(m, &m.join("hf.co/user/model/q4")).as_deref(), Some("hf.co/user/model:q4"));
-        assert_eq!(model_name(m, &m.join("registry.ollama.ai/me/tiny/latest")).as_deref(), Some("registry.ollama.ai/me/tiny:latest"));
+        assert_eq!(
+            model_name(m, &m.join("registry.ollama.ai/library/llama3/8b")).as_deref(),
+            Some("llama3:8b")
+        );
+        assert_eq!(
+            model_name(m, &m.join("hf.co/user/model/q4")).as_deref(),
+            Some("hf.co/user/model:q4")
+        );
+        assert_eq!(
+            model_name(m, &m.join("registry.ollama.ai/me/tiny/latest")).as_deref(),
+            Some("registry.ollama.ai/me/tiny:latest")
+        );
     }
 }

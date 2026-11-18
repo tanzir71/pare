@@ -57,7 +57,10 @@ fn seg_matcher(seg: &str) -> Option<GlobMatcher> {
 impl PathPattern {
     pub fn compile(expanded: &str) -> Option<PathPattern> {
         let norm = expanded.replace('\\', "/");
-        let mut parts = norm.split('/').filter(|s| !s.is_empty() && *s != ".").peekable();
+        let mut parts = norm
+            .split('/')
+            .filter(|s| !s.is_empty() && *s != ".")
+            .peekable();
         // Base: leading literal segments. A drive ("C:") or UNC root keeps its separator.
         let mut base = String::new();
         if norm.starts_with('/') && !norm.starts_with("//") {
@@ -175,7 +178,11 @@ impl PathSet {
             let p = p.replace('\\', "/");
             // A pattern for a directory also covers everything inside it.
             for variant in [p.clone(), format!("{}/**", p.trim_end_matches('/'))] {
-                if let Ok(g) = GlobBuilder::new(&variant).case_insensitive(true).literal_separator(true).build() {
+                if let Ok(g) = GlobBuilder::new(&variant)
+                    .case_insensitive(true)
+                    .literal_separator(true)
+                    .build()
+                {
                     b.add(g);
                     empty = false;
                 }
@@ -207,7 +214,12 @@ mod tests {
     }
 
     fn rel(root: &Path, m: &Match) -> String {
-        let s = m.path().strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/");
+        let s = m
+            .path()
+            .strip_prefix(root)
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
         match m {
             Match::Item(_) => s,
             Match::Contents(_) => format!("{s}/**"),
@@ -228,14 +240,27 @@ mod tests {
 
         let p = PathPattern::compile(&format!("{root}/User Data/*/Cache/**")).unwrap();
         let got: Vec<String> = p.find().iter().map(|m| rel(r, m)).collect();
-        assert_eq!(got, vec!["User Data/Default/Cache/**", "User Data/Profile 1/Cache/**"]);
+        assert_eq!(
+            got,
+            vec!["User Data/Default/Cache/**", "User Data/Profile 1/Cache/**"]
+        );
 
         let p = PathPattern::compile(&format!("{root}/sessions/**/rollout-*.jsonl")).unwrap();
         let got: Vec<String> = p.find().iter().map(|m| rel(r, m)).collect();
-        assert_eq!(got, vec!["sessions/2026/01/rollout-1.jsonl", "sessions/2026/02/x/rollout-2.jsonl"]);
+        assert_eq!(
+            got,
+            vec![
+                "sessions/2026/01/rollout-1.jsonl",
+                "sessions/2026/02/x/rollout-2.jsonl"
+            ]
+        );
 
         let p = PathPattern::compile(&format!("{root}/user data/*")).unwrap();
-        assert_eq!(p.find().len(), if cfg!(windows) { 2 } else { 0 }, "case-insensitive on Windows");
+        assert_eq!(
+            p.find().len(),
+            if cfg!(windows) { 2 } else { 0 },
+            "case-insensitive on Windows"
+        );
 
         let p = PathPattern::compile(&format!("{root}/missing/**")).unwrap();
         assert!(p.find().is_empty());
@@ -243,7 +268,10 @@ mod tests {
 
     #[test]
     fn path_sets() {
-        let s = PathSet::new(["**/User Data/*/Cookies*".to_string(), "C:/Users/ana/.ssh".to_string()]);
+        let s = PathSet::new([
+            "**/User Data/*/Cookies*".to_string(),
+            "C:/Users/ana/.ssh".to_string(),
+        ]);
         assert!(s.is_match(Path::new("C:/x/User Data/Default/Cookies")));
         assert!(s.is_match(Path::new("C:/x/User Data/Default/Cookies-journal")));
         assert!(s.is_match(Path::new("C:/Users/ana/.ssh/id_ed25519")));

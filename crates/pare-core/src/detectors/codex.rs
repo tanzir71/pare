@@ -12,11 +12,15 @@ use crate::scan::measure::Candidate;
 /// file (`current`, `current.txt`, `version`, `version.txt`) naming the release.
 fn pointed_to(releases_dir: &Path) -> Vec<String> {
     let mut out = Vec::new();
-    let Some(parent) = releases_dir.parent() else { return out };
+    let Some(parent) = releases_dir.parent() else {
+        return out;
+    };
     for name in ["current", "current.txt", "version", "version.txt", "latest"] {
         for dir in [releases_dir, parent] {
             let p = dir.join(name);
-            let Ok(meta) = platform::stat(&p) else { continue };
+            let Ok(meta) = platform::stat(&p) else {
+                continue;
+            };
             if meta.is_link() {
                 if let Ok(t) = std::fs::read_link(&p) {
                     if let Some(n) = t.file_name() {
@@ -27,7 +31,12 @@ fn pointed_to(releases_dir: &Path) -> Vec<String> {
                 if let Ok(s) = std::fs::read_to_string(&p) {
                     let s = s.trim();
                     if !s.is_empty() {
-                        out.push(Path::new(s).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| s.to_string()));
+                        out.push(
+                            Path::new(s)
+                                .file_name()
+                                .map(|n| n.to_string_lossy().into_owned())
+                                .unwrap_or_else(|| s.to_string()),
+                        );
                     }
                 }
             }
@@ -48,24 +57,36 @@ pub fn superseded_releases(w: &Walker, base: &Base, matches: &[Match]) -> Vec<Ca
     let mut releases: Vec<(PathBuf, platform::RawEntry)> = matches
         .iter()
         .filter_map(|m| match m {
-            Match::Item(p) => platform::stat(p).ok().filter(|e| e.is_dir).map(|e| (p.clone(), e)),
+            Match::Item(p) => platform::stat(p)
+                .ok()
+                .filter(|e| e.is_dir)
+                .map(|e| (p.clone(), e)),
             Match::Contents(_) => None,
         })
         .collect();
     if releases.len() < 2 {
         return Vec::new();
     }
-    let releases_dir = releases[0].0.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+    let releases_dir = releases[0]
+        .0
+        .parent()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_default();
     let pointers = pointed_to(&releases_dir);
     releases.sort_by(|a, b| {
         let ka = version_key(&a.0.file_name().unwrap_or_default().to_string_lossy());
         let kb = version_key(&b.0.file_name().unwrap_or_default().to_string_lossy());
         kb.cmp(&ka).then(b.1.modified.cmp(&a.1.modified))
     });
-    let newest_by_mtime = releases.iter().max_by_key(|r| r.1.modified).map(|r| r.0.clone());
+    let newest_by_mtime = releases
+        .iter()
+        .max_by_key(|r| r.1.modified)
+        .map(|r| r.0.clone());
     let keep = |p: &Path, i: usize| {
         let name = p.file_name().unwrap_or_default().to_string_lossy();
-        i == 0 || Some(p) == newest_by_mtime.as_deref() || pointers.iter().any(|x| x.eq_ignore_ascii_case(&name))
+        i == 0
+            || Some(p) == newest_by_mtime.as_deref()
+            || pointers.iter().any(|x| x.eq_ignore_ascii_case(&name))
     };
     let old: Vec<Match> = releases
         .iter()

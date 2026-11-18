@@ -20,7 +20,11 @@ use pare_core::settings::Settings;
 use pare_core::{Env, Finding, Tier};
 
 #[derive(Parser)]
-#[command(name = "pare", version, about = "Make room on your PC. Keep what matters.")]
+#[command(
+    name = "pare",
+    version,
+    about = "Make room on your PC. Keep what matters."
+)]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -88,13 +92,25 @@ pub(crate) fn run_scan(env: &Env, paths: &[PathBuf], in_use: bool) -> ScanOutput
     let req = if paths.is_empty() {
         let fixed: Vec<_> = drives.iter().filter(|d| d.is_fixed).collect();
         ScanRequest {
-            roots: fixed.iter().map(|d| ScanRoot { path: d.root.clone(), label: format!("This PC ({})", d.letter) }).collect(),
+            roots: fixed
+                .iter()
+                .map(|d| ScanRoot {
+                    path: d.root.clone(),
+                    label: format!("This PC ({})", d.letter),
+                })
+                .collect(),
             drives: fixed.iter().map(|d| d.root.clone()).collect(),
             whole_drives: true,
         }
     } else {
         ScanRequest {
-            roots: paths.iter().map(|p| ScanRoot { path: p.clone(), label: p.to_string_lossy().into_owned() }).collect(),
+            roots: paths
+                .iter()
+                .map(|p| ScanRoot {
+                    path: p.clone(),
+                    label: p.to_string_lossy().into_owned(),
+                })
+                .collect(),
             drives: Vec::new(),
             whole_drives: false,
         }
@@ -106,8 +122,19 @@ pub(crate) fn run_scan(env: &Env, paths: &[PathBuf], in_use: bool) -> ScanOutput
         include_recycle_bin: true,
         now: None,
         rules: Some(rules(env)),
+        project_roots: pare_core::projects::default_roots(env)
+            .into_iter()
+            .chain(settings.project_roots.iter().cloned())
+            .collect(),
     };
-    scan(&req, &cfg, env, &Progress::default(), &AtomicBool::new(false), &|_| {})
+    scan(
+        &req,
+        &cfg,
+        env,
+        &Progress::default(),
+        &AtomicBool::new(false),
+        &|_| {},
+    )
 }
 
 fn tier_label(t: &Tier) -> String {
@@ -125,7 +152,10 @@ fn print_findings(findings: &[&Finding]) {
             format_bytes(f.bytes),
             tier_label(&f.tier),
             f.title.chars().take(44).collect::<String>(),
-            f.paths.first().map(|p| p.display().to_string()).unwrap_or_default()
+            f.paths
+                .first()
+                .map(|p| p.display().to_string())
+                .unwrap_or_default()
         );
     }
 }
@@ -134,10 +164,17 @@ fn main() {
     let cli = Cli::parse();
     let env = Env::from_process();
     match cli.cmd {
-        Cmd::Scan { paths, json, no_in_use } => {
+        Cmd::Scan {
+            paths,
+            json,
+            no_in_use,
+        } => {
             let out = run_scan(&env, &paths, !no_in_use);
             if json {
-                println!("{}", serde_json::to_string_pretty(&out.result).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&out.result).unwrap_or_default()
+                );
                 return;
             }
             let r = &out.result;
@@ -154,27 +191,49 @@ fn main() {
                     format_bytes(c.safe_bytes),
                     format_bytes(c.review_bytes)
                 );
-                let mut fs: Vec<&Finding> = r.findings.iter().filter(|f| f.category == c.info.id).collect();
+                let mut fs: Vec<&Finding> = r
+                    .findings
+                    .iter()
+                    .filter(|f| f.category == c.info.id)
+                    .collect();
                 fs.sort_by_key(|f| std::cmp::Reverse(f.bytes));
                 print_findings(&fs.into_iter().take(8).collect::<Vec<_>>());
                 println!();
             }
         }
-        Cmd::Clean { rule, paths, dry_run, yes } => {
+        Cmd::Clean {
+            rule,
+            paths,
+            dry_run,
+            yes,
+        } => {
             let out = run_scan(&env, &paths, true);
             let chosen: Vec<Finding> = out
                 .result
                 .findings
                 .iter()
-                .filter(|f| f.rule_id == rule || (rule.ends_with('.') && f.rule_id.starts_with(&rule)))
+                .filter(|f| {
+                    f.rule_id == rule || (rule.ends_with('.') && f.rule_id.starts_with(&rule))
+                })
                 .cloned()
                 .collect();
-            let selectable: Vec<Finding> = chosen.iter().filter(|f| f.is_selectable()).cloned().collect();
-            println!("{} matching items, {} selectable:", chosen.len(), selectable.len());
+            let selectable: Vec<Finding> = chosen
+                .iter()
+                .filter(|f| f.is_selectable())
+                .cloned()
+                .collect();
+            println!(
+                "{} matching items, {} selectable:",
+                chosen.len(),
+                selectable.len()
+            );
             print_findings(&chosen.iter().collect::<Vec<_>>());
             let total: u64 = selectable.iter().map(|f| f.bytes).sum();
             if dry_run || !yes {
-                println!("\nDry run: would free up {}. Add --yes to do it.", format_bytes(total));
+                println!(
+                    "\nDry run: would free up {}. Add --yes to do it.",
+                    format_bytes(total)
+                );
                 return;
             }
             let log = match OpLog::open(&env.oplog_path()) {
@@ -184,7 +243,13 @@ fn main() {
                     std::process::exit(1);
                 }
             };
-            let report = clean(&selectable, &env, &log, &CleanOptions::new(out.result.started), &|_| {});
+            let report = clean(
+                &selectable,
+                &env,
+                &log,
+                &CleanOptions::new(out.result.started),
+                &|_| {},
+            );
             println!(
                 "\nFreed {} now · {} to the Recycle Bin · {} done, {} failed, {} skipped",
                 format_bytes(report.freed_now),
@@ -197,7 +262,9 @@ fn main() {
                 println!("{s}");
             }
         }
-        Cmd::Rules { cmd: RulesCmd::List } => {
+        Cmd::Rules {
+            cmd: RulesCmd::List,
+        } => {
             let set = rules(&env);
             for (t, r) in set.all_rules() {
                 println!(
@@ -214,11 +281,16 @@ fn main() {
                 eprintln!("warning: {w}");
             }
         }
-        Cmd::Rules { cmd: RulesCmd::Check { only, json } } => {
+        Cmd::Rules {
+            cmd: RulesCmd::Check { only, json },
+        } => {
             let set = rules(&env);
             let reports = rules_check::check(&set, &env, only.as_deref());
             if json {
-                println!("{}", serde_json::to_string_pretty(&reports).unwrap_or_default());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&reports).unwrap_or_default()
+                );
             } else {
                 rules_check::print(&reports);
             }

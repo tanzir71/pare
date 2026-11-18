@@ -68,17 +68,43 @@ pub struct FileAcc {
 /// Honest totals for a set of files: link counts fetched where unknown, each file id counted
 /// once, and a hard-linked file counted only if all its links are in the set.
 /// Returns (allocated, logical, distinct files).
+///
+/// Link counts aren't in bulk directory listings, so each needs a file open. Large trees are
+/// sampled first: if 256 evenly spaced files have no extra links, none of them are assumed to
+/// (npm's `node_modules`); if any do (pnpm), every file is checked.
 pub fn account(files: &mut [FileAcc]) -> (u64, u64, u64) {
+    const SAMPLE_ABOVE: usize = 4096;
+    const SAMPLE: usize = 256;
     let need: Vec<usize> = files
         .iter()
         .enumerate()
         .filter(|(_, f)| f.links == 0 && f.allocated > 0)
         .map(|(i, _)| i)
         .collect();
-    let queried: Vec<(usize, u32)> = need
-        .par_iter()
-        .map(|&i| (i, platform::link_count(&files[i].path).map(|(l, _)| l).unwrap_or(1)))
-        .collect();
+    let query = |idx: &[usize], files: &[FileAcc]| -> Vec<(usize, u32)> {
+        idx.par_iter()
+            .map(|&i| {
+                (
+                    i,
+                    platform::link_count(&files[i].path)
+                        .map(|(l, _)| l)
+                        .unwrap_or(1),
+                )
+            })
+            .collect()
+    };
+    let queried = if need.len() > SAMPLE_ABOVE {
+        let step = need.len() / SAMPLE;
+        let sample: Vec<usize> = need.iter().step_by(step.max(1)).copied().collect();
+        let got = query(&sample, files);
+        if got.iter().all(|(_, l)| *l <= 1) {
+            need.iter().map(|&i| (i, 1)).collect()
+        } else {
+            query(&need, files)
+        }
+    } else {
+        query(&need, files)
+    };
     for (i, l) in queried {
         files[i].links = l;
     }
@@ -95,7 +121,11 @@ pub fn account(files: &mut [FileAcc]) -> (u64, u64, u64) {
             continue;
         }
         n += 1;
-        let occ = if f.file_id != 0 { occurrences[&f.file_id] } else { 1 };
+        let occ = if f.file_id != 0 {
+            occurrences[&f.file_id]
+        } else {
+            1
+        };
         if f.links <= 1 || occ >= f.links {
             a += f.allocated;
             l += f.logical;
@@ -334,8 +364,7 @@ pub fn measure_path(path: &std::path::Path) -> PathMeasure {
         return m;
     };
     let mut stack = vec![(path.to_path_buf(), root)];
-    let mut seen: HashSet<u128> = HashSet::new();
-    let mut recent: Vec<(Timestamp, PathBuf)> = Vec::new();
+    let mut files: Vec<FileAcc> = Vec::new();
     while let Some((p, e)) = stack.pop() {
         m.newest = m.newest.max(e.modified);
         if e.is_dir {
@@ -357,29 +386,27 @@ pub fn measure_path(path: &std::path::Path) -> PathMeasure {
         if e.is_cloud_placeholder() {
             m.any_cloud = true;
         }
-        if e.file_id != 0 && !seen.insert(e.file_id) {
-            continue;
-        }
-        m.files += 1;
-        let links = if e.links == 0 && e.allocated > 0 {
-            platform::link_count(&p).map(|(l, _)| l).unwrap_or(1)
-        } else {
-            e.links
-        };
-        if links <= 1 {
-            m.allocated += e.allocated;
-            m.logical += e.logical;
-        }
         if e.created > 0 && (m.created_min == 0 || e.created < m.created_min) {
             m.created_min = e.created;
         }
-        recent.push((e.modified, p));
+        files.push(FileAcc {
+            path: p,
+            allocated: e.allocated,
+            logical: e.logical,
+            file_id: e.file_id,
+            links: e.links,
+            modified: e.modified,
+        });
     }
-    recent.sort_by_key(|(t, _)| std::cmp::Reverse(*t));
-    m.recent_files = recent
+    let (a, l, n) = account(&mut files);
+    m.allocated = a;
+    m.logical = l;
+    m.files = n;
+    files.sort_by_key(|f| std::cmp::Reverse(f.modified));
+    m.recent_files = files
         .into_iter()
         .take(IN_USE_PROBE_CAP)
-        .map(|(_, p)| p)
+        .map(|f| f.path)
         .collect();
     m
 }

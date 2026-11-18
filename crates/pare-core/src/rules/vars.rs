@@ -22,7 +22,8 @@ pub fn expand(pattern: &str, env: &Env, drives: &[PathBuf]) -> Vec<String> {
             .iter()
             .map(|d| {
                 let root = d.to_string_lossy().replace('\\', "/");
-                s.replace("{drive}/", &root).replace("{drive}", root.trim_end_matches('/'))
+                s.replace("{drive}/", &root)
+                    .replace("{drive}", root.trim_end_matches('/'))
             })
             .collect()
     } else {
@@ -92,7 +93,9 @@ fn expand_percent(s: &str, env: &Env) -> String {
     let mut out = String::new();
     let mut rest = s;
     while let Some(a) = rest.find('%') {
-        let Some(b) = rest[a + 1..].find('%') else { break };
+        let Some(b) = rest[a + 1..].find('%') else {
+            break;
+        };
         let name = &rest[a + 1..a + 1 + b];
         out.push_str(&rest[..a]);
         match env.var(name) {
@@ -119,9 +122,15 @@ mod tests {
     fn tilde_and_percent() {
         let (_d, e) = env();
         let home = e.home.to_string_lossy().replace('\\', "/");
-        assert_eq!(expand("~/.claude/debug/**", &e, &[]), vec![format!("{home}/.claude/debug/**")]);
+        assert_eq!(
+            expand("~/.claude/debug/**", &e, &[]),
+            vec![format!("{home}/.claude/debug/**")]
+        );
         let local = e.local_appdata.to_string_lossy().replace('\\', "/");
-        assert_eq!(expand("%LOCALAPPDATA%/npm-cache/**", &e, &[]), vec![format!("{local}/npm-cache/**")]);
+        assert_eq!(
+            expand("%LOCALAPPDATA%/npm-cache/**", &e, &[]),
+            vec![format!("{local}/npm-cache/**")]
+        );
         assert_eq!(expand("%NOPE%/x", &e, &[]), vec!["%NOPE%/x".to_string()]);
     }
 
@@ -134,19 +143,43 @@ mod tests {
             vec![format!("{home}/.ollama/models/manifests/**")]
         );
         assert_eq!(
-            expand("${HF_HUB_CACHE:-${HF_HOME:-~/.cache/huggingface}/hub}/models--*", &e, &[]),
+            expand(
+                "${HF_HUB_CACHE:-${HF_HOME:-~/.cache/huggingface}/hub}/models--*",
+                &e,
+                &[]
+            ),
             vec![format!("{home}/.cache/huggingface/hub/models--*")]
         );
         let e2 = e.clone().with_var("HF_HOME", "D:/hf");
-        assert_eq!(expand("${HF_HUB_CACHE:-${HF_HOME:-~/.cache/huggingface}/hub}/models--*", &e2, &[]), vec!["D:/hf/hub/models--*".to_string()]);
+        assert_eq!(
+            expand(
+                "${HF_HUB_CACHE:-${HF_HOME:-~/.cache/huggingface}/hub}/models--*",
+                &e2,
+                &[]
+            ),
+            vec!["D:/hf/hub/models--*".to_string()]
+        );
         let e3 = e.with_var("GOCACHE", "E:\\go");
-        assert_eq!(expand("${GOCACHE:-%LOCALAPPDATA%/go-build}/**", &e3, &[]), vec!["E:/go/**".to_string()]);
+        assert_eq!(
+            expand("${GOCACHE:-%LOCALAPPDATA%/go-build}/**", &e3, &[]),
+            vec!["E:/go/**".to_string()]
+        );
     }
 
     #[test]
     fn drives() {
         let (_d, e) = env();
-        let v = expand("{drive}/WindowsApps/x", &e, &[PathBuf::from("C:\\"), PathBuf::from("D:\\")]);
-        assert_eq!(v, vec!["C:/WindowsApps/x".to_string(), "D:/WindowsApps/x".to_string()]);
+        let v = expand(
+            "{drive}/WindowsApps/x",
+            &e,
+            &[PathBuf::from("C:\\"), PathBuf::from("D:\\")],
+        );
+        assert_eq!(
+            v,
+            vec![
+                "C:/WindowsApps/x".to_string(),
+                "D:/WindowsApps/x".to_string()
+            ]
+        );
     }
 }

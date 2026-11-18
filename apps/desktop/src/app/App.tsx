@@ -11,6 +11,7 @@ import { Done } from "./Done";
 import { History } from "./History";
 import { SettingsScreen } from "./Settings";
 import { ComingSoon } from "./ComingSoon";
+import { Projects } from "./Projects";
 
 function sidebarScreen(s: Screen): SidebarScreen {
   switch (s.name) {
@@ -90,7 +91,7 @@ function ScreenView({ screen }: { screen: Screen }) {
     case "settings":
       return <SettingsScreen />;
     case "projects":
-      return <ComingSoon screen="projects" />;
+      return <Projects />;
     case "browse":
       return <ComingSoon screen="browse" />;
   }

@@ -325,3 +325,43 @@ export interface AppInfo {
   logDir: string;
   settingsPath: string;
 }
+
+export type ProjectStatus =
+  | "clean-pushed"
+  | "active"
+  | "unpushed"
+  | "no-upstream"
+  | "no-remote"
+  | "detached"
+  | "uncommitted"
+  | "not-git";
+
+export interface Artifact {
+  name: string;
+  path: string;
+  bytes: number;
+  ecosystem: string;
+}
+
+export interface Project {
+  root: string;
+  name: string;
+  git: GitInfo | null;
+  status: ProjectStatus;
+  lastChange: Timestamp | null;
+  idleDays: number | null;
+  ecosystems: string[];
+  rebuild: string[];
+  artifacts: Artifact[];
+  bytes: number;
+  tier: Tier;
+  findingId: string | null;
+  parent: string | null;
+}
+
+export interface ProjectsView {
+  checked: Timestamp | null;
+  roots: string[];
+  projects: Project[];
+  findings: Finding[];
+}
