@@ -10,6 +10,7 @@ use serde::Serialize;
 use super::executor::{new_op_id, run_command};
 use super::oplog::{ItemStatus, LogRecord, OpLog};
 use crate::env::Env;
+use crate::i18n::{tr, trf};
 use crate::platform::{self, now_ms};
 use crate::rules::ACTION_PROGRAMS;
 use crate::types::{Disposal, Finding, GuideAction};
@@ -28,14 +29,14 @@ pub struct ActionReport {
 /// The `index`th action of a guide finding, if it is one Pare may run.
 pub fn action_of(f: &Finding, index: usize) -> Result<&GuideAction, String> {
     let Disposal::Guide { actions, .. } = &f.disposal else {
-        return Err("This item has no steps Pare can run.".into());
+        return Err(tr("This item has no steps Pare can run."));
     };
     let a = actions
         .get(index)
-        .ok_or_else(|| "That step doesn't exist.".to_string())?;
+        .ok_or_else(|| tr("That step doesn't exist."))?;
     match a.run.first() {
         Some(p) if ACTION_PROGRAMS.contains(&p.as_str()) => Ok(a),
-        _ => Err("Pare doesn't run that command.".into()),
+        _ => Err(tr("Pare doesn't run that command.")),
     }
 }
 
@@ -65,10 +66,9 @@ pub fn run_action(
 ) -> Result<ActionReport, String> {
     let a = action_of(f, index)?.clone();
     if a.admin && !elevated {
-        return Err(
-            "This step needs administrator rights. Restart Pare as administrator, or run the command in an administrator terminal."
-                .into(),
-        );
+        return Err(tr(
+            "This step needs administrator rights. Restart Pare as administrator, or run the command in an administrator terminal.",
+        ));
     }
     let compact = a.run[0] == "pare:compact-vhd";
     let disks: Vec<PathBuf> = if compact {
@@ -78,19 +78,24 @@ pub fn run_action(
     };
     if compact {
         if disks.is_empty() {
-            return Err("No virtual disk to compact.".into());
+            return Err(tr("No virtual disk to compact."));
         }
         for d in &disks {
-            let m = platform::stat(d).map_err(|_| format!("{} no longer exists.", d.display()))?;
+            let shown = d.display().to_string();
+            let m = platform::stat(d)
+                .map_err(|_| trf("{path} no longer exists.", &[("path", &shown)]))?;
             if m.is_reparse() || m.is_dir {
-                return Err(format!("{} isn't a virtual disk file.", d.display()));
+                return Err(trf(
+                    "{path} isn't a virtual disk file.",
+                    &[("path", &shown)],
+                ));
             }
             if let Ok(h) = platform::processes_holding(std::slice::from_ref(d)) {
                 if !h.is_empty() {
                     let names: Vec<String> = h.into_iter().map(|h| h.name).collect();
-                    return Err(format!(
-                        "The disk is in use by {}. Quit Docker Desktop and run 'wsl --shutdown' first.",
-                        names.join(", ")
+                    return Err(trf(
+                        "The disk is in use by {apps}. Quit Docker Desktop and run 'wsl --shutdown' first.",
+                        &[("apps", &names.join(", "))],
                     ));
                 }
             }
@@ -134,7 +139,12 @@ pub fn run_action(
         },
         item(ItemStatus::Pending, None, None, 0),
     ])
-    .map_err(|e| format!("Couldn't write the operation log: {e}"))?;
+    .map_err(|e| {
+        trf(
+            "Couldn't write the operation log: {error}",
+            &[("error", &e.to_string())],
+        )
+    })?;
 
     let (ok, output) = if compact {
         compact_all(&disks, env)

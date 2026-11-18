@@ -205,21 +205,30 @@ pub fn duplicates(ctx: &DetectCtx, threads: usize, claimed: &HashSet<NodeId>) ->
         c.tier = Tier::Review;
         c.disposal = Disposal::Recycle; // always: these are your files
         c.comes_back = ComesBack::No;
-        c.why = format!(
-            "Exact copies of {name} ({} each). Pare compared every byte.",
-            format_bytes(keep.size)
+        c.why = crate::i18n::trf(
+            "Exact copies of {name} ({size} each). Pare compared every byte.",
+            &[("name", &name), ("size", &format_bytes(keep.size))],
         );
-        c.if_removed = format!(
-            "The copy in {} stays. The others go to the Recycle Bin.",
-            keep.path
-                .parent()
-                .map(|p| p.display().to_string())
-                .unwrap_or_default()
+        c.if_removed = crate::i18n::trf(
+            "The copy in {folder} stays. The others go to the Recycle Bin.",
+            &[(
+                "folder",
+                &keep
+                    .path
+                    .parent()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_default(),
+            )],
         );
-        c.note = Some(format!("{} other copies", g.len()));
-        c.badge = Some("Duplicate".into());
-        c.facts
-            .push(("Kept copy".into(), keep.path.display().to_string()));
+        c.note = Some(crate::i18n::trf(
+            "{n} other copies",
+            &[("n", &g.len().to_string())],
+        ));
+        c.badge = Some(crate::i18n::tr("Duplicate"));
+        c.facts.push((
+            crate::i18n::tr("Kept copy"),
+            keep.path.display().to_string(),
+        ));
         let mut accs: Vec<FileAcc> = g
             .iter()
             .map(|x| FileAcc {
@@ -273,17 +282,21 @@ pub fn screenshots(ctx: &DetectCtx) -> Vec<Candidate> {
             n.name.to_string_lossy().into_owned(),
         );
         cand.nodes = vec![c];
-        cand.source = "Screenshots".into();
+        cand.source = crate::i18n::tr("Screenshots");
         cand.source_path = Some(dir.clone());
         cand.tier = Tier::Review;
         cand.disposal = Disposal::Recycle;
         cand.comes_back = ComesBack::No;
-        cand.why = format!(
-            "A screenshot taken {}.",
-            crate::format::age_phrase(ctx.now, n.created.max(n.modified).min(n.modified))
+        cand.why = crate::i18n::trf(
+            "A screenshot taken {when}.",
+            &[(
+                "when",
+                &crate::format::age_phrase(ctx.now, n.created.max(n.modified).min(n.modified)),
+            )],
         );
-        cand.if_removed =
-            "It goes to the Recycle Bin, so you can restore it until the bin is emptied.".into();
+        cand.if_removed = crate::i18n::tr(
+            "It goes to the Recycle Bin, so you can restore it until the bin is emptied.",
+        );
         cand.note = Some(crate::format::age_phrase(ctx.now, n.modified));
         out.push(cand);
     }

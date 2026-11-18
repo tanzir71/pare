@@ -1,6 +1,19 @@
 import { create } from "zustand";
+import { resolveLocale, setLocale, t, type Locale } from "../i18n";
 import { api } from "../lib/ipc";
 import type { AppInfo, CategoryId, Drive, KnownFolders, Settings } from "../lib/types";
+
+/**
+ * Switch the UI to a `language` setting ("" follows Windows) and tell the backend the resolved
+ * locale, so its text comes back in that language from the next scan on. Backend errors are
+ * ignored: an older backend without `locale_set` keeps English text.
+ */
+export function applyLanguage(language: string): Locale {
+  const locale = resolveLocale(language);
+  setLocale(locale);
+  void api.localeSet(locale).catch(() => {});
+  return locale;
+}
 
 export type Screen =
   | { name: "clean" }
@@ -41,6 +54,7 @@ export const useApp = create<AppStore>((set) => ({
       api.settingsGet(),
       api.appInfo(),
     ]);
+    applyLanguage(settings.language);
     set({ drives, folders, settings, info, ready: true });
   },
   refreshDrives: async () => set({ drives: await api.listDrives() }),
@@ -54,5 +68,5 @@ export function primaryDrive(drives: Drive[]): Drive | undefined {
 }
 
 export function driveLabel(d: Drive): string {
-  return `${d.label || "Local Disk"} (${d.letter})`;
+  return `${d.label || t("drive.localDisk")} (${d.letter})`;
 }

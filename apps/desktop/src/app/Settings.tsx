@@ -3,11 +3,12 @@ import { FolderOpen, FolderPlus, X } from "lucide-react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { Button, Chip, cx, focusRing } from "@pare/ui";
 import { api, isTauri } from "../lib/ipc";
-import { checkForUpdate, markChecked } from "../lib/updates";
+import { checkForUpdate, markChecked, type UpdateResult } from "../lib/updates";
 import { useEffect, useState } from "react";
-import type { CategoryId, SchedulableRule, Settings, Theme, Thresholds } from "../lib/types";
-import { comesBackLabel } from "../lib/format";
-import { useApp } from "../state/app";
+import type { SchedulableRule, Settings, Theme, Thresholds } from "../lib/types";
+import { categoryTitle, comesBackLabel } from "../lib/format";
+import { resolveLocale, useT, type MessageKey } from "../i18n";
+import { applyLanguage, useApp } from "../state/app";
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
@@ -20,13 +21,19 @@ function Section({ title, description, children }: { title: string; description?
 }
 
 function PathList({ paths, onRemove, empty }: { paths: string[]; onRemove: (p: string) => void; empty: string }) {
+  const { t } = useT();
   if (paths.length === 0) return <p className="text-body-s text-text-tertiary">{empty}</p>;
   return (
     <ul className="overflow-hidden rounded-md border border-border-default">
       {paths.map((p) => (
         <li key={p} className="flex items-center gap-3 border-b border-border-default px-3 py-2 last:border-b-0">
           <span className="min-w-0 flex-1 truncate font-mono text-mono-s">{p}</span>
-          <button type="button" aria-label={`Remove ${p}`} onClick={() => onRemove(p)} className={cx("rounded-md p-1 text-text-secondary hover:bg-bg-subtle", focusRing)}>
+          <button
+            type="button"
+            aria-label={t("settings.remove", { path: p })}
+            onClick={() => onRemove(p)}
+            className={cx("rounded-md p-1 text-text-secondary hover:bg-bg-subtle", focusRing)}
+          >
             <X size={16} aria-hidden="true" />
           </button>
         </li>
@@ -67,18 +74,19 @@ function Select<T extends string | number>({
   );
 }
 
-const EVERY: { value: number; label: string }[] = [
-  { value: 0, label: "Off" },
-  { value: 7, label: "Every week" },
-  { value: 30, label: "Every month" },
+const EVERY: { value: number; label: MessageKey }[] = [
+  { value: 0, label: "settings.every.off" },
+  { value: 7, label: "settings.every.week" },
+  { value: 30, label: "settings.every.month" },
 ];
 
 function Schedules({ settings, set }: { settings: Settings; set: (p: Partial<Settings>) => void }) {
+  const { t } = useT();
   const [rules, setRules] = useState<SchedulableRule[] | null>(null);
   useEffect(() => {
     void api.schedulableRules().then(setRules).catch(() => setRules([]));
   }, []);
-  if (!rules) return <p className="text-body-s text-text-tertiary">Loading…</p>;
+  if (!rules) return <p className="text-body-s text-text-tertiary">{t("common.loading")}</p>;
   const every = (id: string) => settings.schedules.find((s) => s.rule === id)?.everyDays ?? 0;
   const change = (id: string, days: number) => {
     const rest = settings.schedules.filter((s) => s.rule !== id);
@@ -94,18 +102,18 @@ function Schedules({ settings, set }: { settings: Settings; set: (p: Partial<Set
             </p>
             <p className="text-body-s text-text-secondary">{r.why}</p>
             <p className="text-caption text-text-tertiary">
-              If removed: {r.ifRemoved} Comes back: {comesBackLabel(r.comesBack)}.
+              {t("settings.schedules.detail", { ifRemoved: r.ifRemoved, comesBack: comesBackLabel(r.comesBack) })}
             </p>
           </div>
           <select
-            aria-label={`Schedule for ${r.title}`}
+            aria-label={t("settings.schedules.for", { title: r.title })}
             value={String(every(r.id))}
             onChange={(e) => change(r.id, Number(e.currentTarget.value))}
             className={cx("h-9 shrink-0 rounded-md border border-border-strong bg-bg-surface px-2 text-body-m", focusRing)}
           >
             {EVERY.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {t(o.label)}
               </option>
             ))}
           </select>
@@ -138,35 +146,31 @@ function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange
   );
 }
 
-const THRESHOLDS: { key: keyof Thresholds; label: string; unit: string; min: number }[] = [
-  { key: "largeFileMb", label: "Large files are at least", unit: "MB", min: 1 },
-  { key: "largeFileDays", label: "…and unchanged for", unit: "days", min: 1 },
-  { key: "oldDownloadDays", label: "Old downloads: unchanged for", unit: "days", min: 1 },
-  { key: "installerDays", label: "Installers: older than", unit: "days", min: 0 },
-  { key: "idleDays", label: "Projects are idle after", unit: "days", min: 1 },
-  { key: "screenshotDays", label: "Screenshots: older than", unit: "days", min: 1 },
-  { key: "duplicateMinMb", label: "Duplicates: skip files under", unit: "MB", min: 0 },
+const THRESHOLDS: { key: keyof Thresholds; label: MessageKey; unit: MessageKey; min: number }[] = [
+  { key: "largeFileMb", label: "settings.threshold.largeFileMb", unit: "settings.unit.mb", min: 1 },
+  { key: "largeFileDays", label: "settings.threshold.largeFileDays", unit: "settings.unit.days", min: 1 },
+  { key: "oldDownloadDays", label: "settings.threshold.oldDownloadDays", unit: "settings.unit.days", min: 1 },
+  { key: "installerDays", label: "settings.threshold.installerDays", unit: "settings.unit.days", min: 0 },
+  { key: "idleDays", label: "settings.threshold.idleDays", unit: "settings.unit.days", min: 1 },
+  { key: "screenshotDays", label: "settings.threshold.screenshotDays", unit: "settings.unit.days", min: 1 },
+  { key: "duplicateMinMb", label: "settings.threshold.duplicateMinMb", unit: "settings.unit.mb", min: 0 },
 ];
 
-const CARD_TITLES: Record<CategoryId, string> = {
-  "ai-tools": "AI tool caches",
-  "project-build": "Old project build files",
-  "dev-caches": "Developer caches",
-  "large-files": "Large files",
-  downloads: "Downloads",
-  "recycle-bin": "Recycle Bin",
-  duplicates: "Duplicates",
-  junk: "Junk & temp files",
-  browsers: "Browser caches",
-  screenshots: "Old screenshots",
-  "empty-folders": "Empty folders",
-};
+/** Language setting values: "" follows Windows. */
+const LANGUAGES: { value: string; label: MessageKey }[] = [
+  { value: "", label: "settings.language.system" },
+  { value: "en", label: "settings.language.en" },
+  { value: "es", label: "settings.language.es" },
+];
+
+type UpdateState = { kind: "checking" } | UpdateResult;
 
 export function SettingsScreen() {
+  const { t, tp } = useT();
   const settings = useApp((s) => s.settings);
   const info = useApp((s) => s.info);
   const update = useApp((s) => s.updateSettings);
-  const [updateMsg, setUpdateMsg] = useState<string | null>(null);
+  const [updateState, setUpdateState] = useState<UpdateState | null>(null);
   if (!settings) return null;
   const set = (patch: Partial<Settings>) => void update(patch);
 
@@ -176,14 +180,30 @@ export function SettingsScreen() {
     return typeof picked === "string" ? picked : null;
   }
 
+  function updateMessage(s: UpdateState): string {
+    switch (s.kind) {
+      case "checking":
+        return t("common.checking");
+      case "none":
+        return t("settings.updates.latest");
+      case "available":
+        return t("settings.updates.available", { version: s.update.version });
+      case "unavailable":
+        return s.reason === "preview" ? t("settings.updates.preview") : t("settings.updates.unsupported");
+    }
+  }
+
+  // A stored tag like "es-MX" shows as its language; "" stays "Match Windows".
+  const language = settings.language.trim() === "" ? "" : resolveLocale(settings.language);
+
   return (
     <div className="mx-auto flex max-w-[760px] flex-col gap-5 pb-12 pl-4 pr-8 pt-6">
-      <h1 className="text-heading-h1">Settings</h1>
+      <h1 className="text-heading-h1">{t("settings.title")}</h1>
 
-      <Section title="Scan locations" description="Folders that appear as scope chips on Clean, and where Pare looks for git projects.">
+      <Section title={t("settings.locations.title")} description={t("settings.locations.description")}>
         <PathList
           paths={settings.customRoots.map((r) => r.path)}
-          empty="No extra folders yet."
+          empty={t("settings.locations.empty")}
           onRemove={(p) => set({ customRoots: settings.customRoots.filter((r) => r.path !== p) })}
         />
         <div className="flex flex-wrap gap-2">
@@ -192,22 +212,22 @@ export function SettingsScreen() {
             icon={FolderPlus}
             disabled={!isTauri}
             onClick={async () => {
-              const p = await pickFolder("Add a folder to scan");
+              const p = await pickFolder(t("common.dialog.addScanFolder"));
               if (p && !settings.customRoots.some((r) => r.path === p)) set({ customRoots: [...settings.customRoots, { path: p, label: p }] });
             }}
           >
-            Add folder
+            {t("common.addFolder")}
           </Button>
           <Button
             variant="secondary"
             icon={FolderPlus}
             disabled={!isTauri}
             onClick={async () => {
-              const p = await pickFolder("Add a projects folder");
+              const p = await pickFolder(t("common.dialog.addProjectsFolder"));
               if (p && !settings.projectRoots.includes(p)) set({ projectRoots: [...settings.projectRoots, p] });
             }}
           >
-            Add projects folder
+            {t("settings.addProjectsFolder")}
           </Button>
         </div>
         {settings.projectRoots.length > 0 && (
@@ -215,123 +235,125 @@ export function SettingsScreen() {
         )}
       </Section>
 
-      <Section title="Always keep" description="Pare never suggests these, and anything inside them.">
-        <PathList paths={settings.exclusions} empty="Nothing yet. Use “Always keep this” in a suggestion's details." onRemove={(p) => set({ exclusions: settings.exclusions.filter((x) => x !== p) })} />
+      <Section title={t("settings.keep.title")} description={t("settings.keep.description")}>
+        <PathList
+          paths={settings.exclusions}
+          empty={t("settings.keep.empty")}
+          onRemove={(p) => set({ exclusions: settings.exclusions.filter((x) => x !== p) })}
+        />
         <div>
           <Button
             variant="secondary"
             icon={FolderPlus}
             disabled={!isTauri}
             onClick={async () => {
-              const p = await pickFolder("Always keep this folder");
+              const p = await pickFolder(t("settings.keep.dialog"));
               if (p && !settings.exclusions.includes(p)) set({ exclusions: [...settings.exclusions, p] });
             }}
           >
-            Add a folder to keep
+            {t("settings.keep.add")}
           </Button>
         </div>
       </Section>
 
-      <Section title="Thresholds" description="What counts as large, old or idle.">
+      <Section title={t("settings.thresholds.title")} description={t("settings.thresholds.description")}>
         <div className="grid grid-cols-1 gap-x-6 gap-y-3 min-[900px]:grid-cols-2">
-          {THRESHOLDS.map((t) => (
-            <label key={t.key} className="flex items-center justify-between gap-3 text-body-m">
-              <span className="text-text-secondary">{t.label}</span>
+          {THRESHOLDS.map((th) => (
+            <label key={th.key} className="flex items-center justify-between gap-3 text-body-m">
+              <span className="text-text-secondary">{t(th.label)}</span>
               <span className="flex items-center gap-2">
                 <input
                   type="number"
-                  min={t.min}
-                  value={settings.thresholds[t.key]}
+                  min={th.min}
+                  value={settings.thresholds[th.key]}
                   onChange={(e) => {
-                    const v = Math.max(t.min, Number(e.currentTarget.value) || t.min);
-                    set({ thresholds: { ...settings.thresholds, [t.key]: v } });
+                    const v = Math.max(th.min, Number(e.currentTarget.value) || th.min);
+                    set({ thresholds: { ...settings.thresholds, [th.key]: v } });
                   }}
                   className={cx("tabular h-9 w-24 rounded-md border border-border-strong bg-bg-surface px-2 text-right text-body-m", focusRing)}
                 />
-                <span className="w-9 text-text-tertiary">{t.unit}</span>
+                <span className="w-9 text-text-tertiary">{t(th.unit)}</span>
               </span>
             </label>
           ))}
         </div>
       </Section>
 
-      <Section title="Disposal">
+      <Section title={t("settings.disposal.title")}>
         <Toggle
-          label="Send caches to the Recycle Bin too"
-          hint="Normally caches that rebuild themselves are removed right away. With this on, everything goes to the Recycle Bin first (frees space only when the bin is emptied)."
+          label={t("settings.cachesToBin.label")}
+          hint={t("settings.cachesToBin.hint")}
           checked={settings.cachesToRecycleBin}
           onChange={(v) => set({ cachesToRecycleBin: v })}
         />
         <Toggle
-          label="Empty Pare's items from the Recycle Bin after 30 days"
-          hint="Only items Pare moved. Everything else in your Recycle Bin is left alone."
+          label={t("settings.purge.label")}
+          hint={t("settings.purge.hint")}
           checked={settings.purgePareItemsAfterDays != null}
           onChange={(v) => set({ purgePareItemsAfterDays: v ? 30 : null })}
         />
       </Section>
 
-      <Section
-        title="Monitor"
-        description="While Pare is open (or in the notification area), it checks the folders its rules know about and tells you when one grows fast. It only reads; nothing is removed."
-      >
+      <Section title={t("settings.monitor.title")} description={t("settings.monitor.description")}>
         <Toggle
-          label="Watch for fast-growing folders"
-          hint="For example: “~\.codex grew 12 GB this week”. Pare checks a few times a day."
+          label={t("settings.monitor.watch.label")}
+          hint={t("settings.monitor.watch.hint")}
           checked={settings.monitor.enabled}
           onChange={(v) => set({ monitor: { ...settings.monitor, enabled: v } })}
         />
         <Toggle
-          label="Keep Pare in the notification area when I close the window"
-          hint="Monitoring and scheduled cleanups only run while Pare is running. Pare doesn't start with Windows, install a service or add a scheduled task."
+          label={t("settings.monitor.tray.label")}
+          hint={t("settings.monitor.tray.hint")}
           checked={settings.monitor.tray}
           onChange={(v) => set({ monitor: { ...settings.monitor, tray: v } })}
         />
         {settings.monitor.enabled && (
           <div className="grid grid-cols-1 gap-x-6 gap-y-3 min-[900px]:grid-cols-2">
             <Select
-              label="Tell me when something grows by"
+              label={t("settings.monitor.alert")}
               value={settings.monitor.alertGb}
-              options={[1, 2, 5, 10, 20].map((n) => ({ value: n, label: `${n} GB a week` }))}
+              options={[1, 2, 5, 10, 20].map((n) => ({ value: n, label: t("settings.monitor.alertOption", { n }) }))}
               onChange={(v) => set({ monitor: { ...settings.monitor, alertGb: v } })}
             />
             <Select
-              label="Check every"
+              label={t("settings.monitor.every")}
               value={settings.monitor.checkHours}
-              options={[3, 6, 12, 24].map((n) => ({ value: n, label: `${n} hours` }))}
+              options={[3, 6, 12, 24].map((n) => ({ value: n, label: tp("time.hours", n) }))}
               onChange={(v) => set({ monitor: { ...settings.monitor, checkHours: v } })}
             />
           </div>
         )}
       </Section>
 
-      <Section
-        title="Scheduled cleanups"
-        description="Off by default. Only Safe items that come back on their own can run on a schedule. Each run skips anything changed in the last 24 hours, open in an app or on your “Always keep” list, and shows up in History."
-      >
+      <Section title={t("settings.schedules.title")} description={t("settings.schedules.description")}>
         <Schedules settings={settings} set={set} />
       </Section>
 
-      <Section title="Appearance">
-        <div className="flex gap-2" role="radiogroup" aria-label="Theme">
-          {(["system", "light", "dark"] as Theme[]).map((t) => (
-            <Chip key={t} selected={settings.theme === t} role="radio" aria-checked={settings.theme === t} onClick={() => set({ theme: t })}>
-              {t === "system" ? "Match Windows" : t === "light" ? "Light" : "Dark"}
+      <Section title={t("settings.appearance.title")}>
+        <div className="flex gap-2" role="radiogroup" aria-label={t("settings.theme")}>
+          {(["system", "light", "dark"] as Theme[]).map((th) => (
+            <Chip key={th} selected={settings.theme === th} role="radio" aria-checked={settings.theme === th} onClick={() => set({ theme: th })}>
+              {t(`settings.theme.${th}`)}
             </Chip>
           ))}
         </div>
-        <label className="flex items-center justify-between text-body-m">
-          <span className="text-text-secondary">Language</span>
-          <select disabled value={settings.language} className="h-9 rounded-md border border-border-strong bg-bg-surface px-2 text-body-m">
-            <option value="en">English</option>
-          </select>
-        </label>
+        <Select
+          label={t("settings.language")}
+          value={language}
+          options={LANGUAGES.map((l) => ({ value: l.value, label: t(l.label) }))}
+          onChange={(v) => {
+            // Switch the UI right away, then save; the backend follows from the next scan.
+            applyLanguage(v);
+            set({ language: v });
+          }}
+        />
         {settings.hiddenCards.length > 0 && (
           <div>
-            <p className="text-body-m-strong">Hidden suggestions</p>
+            <p className="text-body-m-strong">{t("settings.hidden")}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {settings.hiddenCards.map((c) => (
                 <Chip key={c} onClick={() => set({ hiddenCards: settings.hiddenCards.filter((x) => x !== c) })}>
-                  Show {CARD_TITLES[c]}
+                  {t("settings.show", { title: categoryTitle(c) })}
                 </Chip>
               ))}
             </div>
@@ -339,10 +361,10 @@ export function SettingsScreen() {
         )}
       </Section>
 
-      <Section title="Updates" description="Pare never connects to the internet unless you turn this on.">
+      <Section title={t("settings.updates.title")} description={t("settings.updates.description")}>
         <Toggle
-          label="Check for updates"
-          hint="Once a day, Pare asks GitHub whether a newer version exists. Nothing about your PC is sent."
+          label={t("settings.updates.check.label")}
+          hint={t("settings.updates.check.hint")}
           checked={settings.checkForUpdates}
           onChange={(v) => set({ checkForUpdates: v })}
         />
@@ -351,29 +373,25 @@ export function SettingsScreen() {
             <Button
               variant="secondary"
               onClick={async () => {
-                setUpdateMsg("Checking…");
+                setUpdateState({ kind: "checking" });
                 const r = await checkForUpdate();
                 markChecked();
-                setUpdateMsg(r.kind === "none" ? "You have the latest version." : r.kind === "available" ? `Pare ${r.update.version} is available. Restart Pare to install it.` : r.reason);
+                setUpdateState(r);
               }}
             >
-              Check now
+              {t("settings.updates.checkNow")}
             </Button>
-            {updateMsg && <span className="text-body-s text-text-secondary">{updateMsg}</span>}
+            {updateState && <span className="text-body-s text-text-secondary">{updateMessage(updateState)}</span>}
           </div>
         )}
       </Section>
 
-      <Section title="About">
-        <p className="text-body-m">
-          Pare {info?.version} · MIT License · free and open source
-        </p>
-        <p className="text-body-s text-text-secondary">
-          Pare is an independent project and is not affiliated with Microsoft, Google, Anthropic or OpenAI. Product names are used only to describe the files their apps create.
-        </p>
+      <Section title={t("settings.about.title")}>
+        <p className="text-body-m">{t("settings.about.line", { version: info?.version ?? "" })}</p>
+        <p className="text-body-s text-text-secondary">{t("settings.about.disclaimer")}</p>
         <div>
           <Button variant="secondary" icon={FolderOpen} onClick={() => info && void api.openInExplorer(info.logDir)}>
-            Open log folder
+            {t("settings.about.openLogs")}
           </Button>
         </div>
       </Section>

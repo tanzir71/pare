@@ -65,7 +65,11 @@ pub fn snapshot(findings: &[Finding], set: &RuleSet, now: Timestamp) -> Snapshot
         }
         let s = rules.entry(f.rule_id.clone()).or_insert_with(|| Sample {
             bytes: 0,
-            label: format!("{} · {}", tool.tool.name, rule.title),
+            label: format!(
+                "{} · {}",
+                crate::i18n::tr(&tool.tool.name),
+                crate::i18n::tr(&rule.title)
+            ),
             path: f.source_path.clone(),
             category: f.category,
         });

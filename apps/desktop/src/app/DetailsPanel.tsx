@@ -3,6 +3,7 @@ import { FolderOpen, Play, ShieldAlert, Trash2, X, Sparkles } from "lucide-react
 import { Badge, Button, CategoryTile, cx, focusRing } from "@pare/ui";
 import { api } from "../lib/ipc";
 import { ago, comesBackLabel, date, formatBytes, formatCount, protectExplain, tierBadge, tildePath } from "../lib/format";
+import { t, tp, useT } from "../i18n";
 import type { ActionReport, Finding, GuideAction } from "../lib/types";
 import { useApp } from "../state/app";
 import { categoryHue, findingIcon } from "../components/icons";
@@ -18,6 +19,7 @@ export function actionCommand(a: GuideAction, paths: string[]): string {
 }
 
 function GuideSteps({ finding: f }: { finding: Finding }) {
+  const { t } = useT();
   const elevated = useApp((s) => s.info?.elevated ?? false);
   const [confirm, setConfirm] = useState<number | null>(null);
   const [running, setRunning] = useState<number | null>(null);
@@ -40,7 +42,7 @@ function GuideSteps({ finding: f }: { finding: Finding }) {
 
   return (
     <section>
-      <h3 className="text-body-m-strong text-text-primary">How to clean it up</h3>
+      <h3 className="text-body-m-strong text-text-primary">{t("guide.title")}</h3>
       <ol className="mt-1 list-decimal space-y-3 pl-5 text-body-s text-text-secondary">
         {steps.map((s, i) => (
           <li key={s}>
@@ -56,34 +58,34 @@ function GuideSteps({ finding: f }: { finding: Finding }) {
                     {a.admin && !elevated ? (
                       <div className="rounded-md bg-bg-subtle px-3 py-2">
                         <p className="flex items-center gap-1.5 text-text-primary">
-                          <ShieldAlert size={14} aria-hidden="true" /> Needs administrator rights
+                          <ShieldAlert size={14} aria-hidden="true" /> {t("guide.needsAdmin")}
                         </p>
-                        <p className="mt-1">Run this in an administrator terminal, or restart Pare as administrator and come back here.</p>
+                        <p className="mt-1">{t("guide.adminHint")}</p>
                         <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all font-mono text-mono-s text-text-primary">{cmd}</pre>
                         <div className="mt-2 flex gap-2">
                           <Button variant="secondary" onClick={() => void navigator.clipboard?.writeText(cmd)}>
-                            Copy command
+                            {t("guide.copyCommand")}
                           </Button>
                           <Button variant="ghost" onClick={() => void api.relaunchElevated().catch((e) => setResults((x) => ({ ...x, [idx]: String(e) })))}>
-                            Restart as administrator
+                            {t("common.restartAsAdmin")}
                           </Button>
                         </div>
                       </div>
                     ) : confirm === idx ? (
                       <div className="rounded-md border border-border-default px-3 py-2">
-                        <p className="text-text-primary">Run this now?</p>
+                        <p className="text-text-primary">{t("guide.confirm")}</p>
                         <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all font-mono text-mono-s">{cmd}</pre>
                         <div className="mt-2 flex gap-2">
-                          <Button onClick={() => void run(idx)}>Run</Button>
+                          <Button onClick={() => void run(idx)}>{t("guide.run")}</Button>
                           <Button variant="ghost" onClick={() => setConfirm(null)}>
-                            Cancel
+                            {t("common.cancel")}
                           </Button>
                         </div>
                       </div>
                     ) : (
                       <div>
                         <Button variant="secondary" icon={Play} disabled={running !== null} onClick={() => setConfirm(idx)}>
-                          {running === idx ? "Running…" : a.label}
+                          {running === idx ? t("guide.running") : a.label}
                         </Button>
                       </div>
                     )}
@@ -91,8 +93,8 @@ function GuideSteps({ finding: f }: { finding: Finding }) {
                     {res && typeof res !== "string" && (
                       <div className={cx("rounded-md px-3 py-2", res.ok ? "bg-safe-bg text-safe-fg" : "bg-review-bg text-review-fg")}>
                         <p>
-                          {res.ok ? "Done." : "That didn't work."}
-                          {res.before > res.after ? ` Freed ${formatBytes(res.before - res.after)}.` : ""}
+                          {res.ok ? t("guide.done") : t("guide.failed")}
+                          {res.before > res.after ? ` ${t("guide.freed", { size: formatBytes(res.before - res.after) })}` : ""}
                         </p>
                         {res.output && <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-mono-s">{res.output}</pre>}
                       </div>
@@ -103,7 +105,7 @@ function GuideSteps({ finding: f }: { finding: Finding }) {
           </li>
         ))}
       </ol>
-      <p className="mt-2 text-caption text-text-tertiary">Pare never deletes this itself. Each step runs only when you click it, and is written to the log.</p>
+      <p className="mt-2 text-caption text-text-tertiary">{t("guide.footer")}</p>
     </section>
   );
 }
@@ -111,13 +113,13 @@ function GuideSteps({ finding: f }: { finding: Finding }) {
 export function disposalAction(f: Finding): { label: string; icon: typeof Trash2 } | null {
   switch (f.disposal.kind) {
     case "recycle":
-      return { label: "Move to Recycle Bin", icon: Trash2 };
+      return { label: t("common.moveToRecycleBin"), icon: Trash2 };
     case "delete":
-      return { label: `Free up ${formatBytes(f.bytes)}`, icon: Sparkles };
+      return { label: t("common.freeUp", { size: formatBytes(f.bytes) }), icon: Sparkles };
     case "command":
-      return { label: `Run ${[f.disposal.program, ...f.disposal.args].join(" ")}`, icon: Play };
+      return { label: t("details.action.run", { command: [f.disposal.program, ...f.disposal.args].join(" ") }), icon: Play };
     case "empty-recycle-bin":
-      return { label: `Empty ${formatBytes(f.bytes)} now`, icon: Trash2 };
+      return { label: t("common.emptyNow", { size: formatBytes(f.bytes) }), icon: Trash2 };
     case "guide":
       return null;
   }
@@ -131,22 +133,30 @@ interface Props {
   busy?: boolean;
 }
 
+function gitStatus(g: NonNullable<Finding["git"]>): string {
+  if (g.dirty) return t("details.git.uncommitted");
+  if (g.ahead > 0) return tp("details.git.unpushed", g.ahead);
+  if (!g.hasRemote) return t("details.git.noRemote");
+  return t("details.git.cleanPushed");
+}
+
 export function DetailsPanel({ finding: f, onClose, onDispose, onKeep, busy }: Props) {
+  const { t, tp } = useT();
   const home = useApp((s) => s.folders?.home);
   const b = tierBadge(f.tier, f.badge, f.disposal);
   const action = disposalAction(f);
   const protectedTier = f.tier.kind === "protected" ? f.tier : null;
   const facts: [string, string][] = [
-    ...(f.createdBy ? [["Created by", f.createdBy] as [string, string]] : []),
-    ["Created", date(f.dates.createdMin)],
-    ["Last modified", date(f.dates.modifiedMax)],
-    ...(f.dates.accessedMax ? [["Last opened", ago(f.dates.accessedMax)] as [string, string]] : []),
-    ["Comes back?", comesBackLabel(f.comesBack)],
+    ...(f.createdBy ? [[t("details.fact.createdBy"), f.createdBy] as [string, string]] : []),
+    [t("details.fact.created"), date(f.dates.createdMin)],
+    [t("details.fact.lastModified"), date(f.dates.modifiedMax)],
+    ...(f.dates.accessedMax ? [[t("details.fact.lastOpened"), ago(f.dates.accessedMax)] as [string, string]] : []),
+    [t("details.fact.comesBack"), comesBackLabel(f.comesBack)],
     ...(f.git
       ? ([
-          ["Branch", f.git.branch ?? (f.git.detached ? "Detached HEAD" : "—")],
-          ["Last commit", ago(f.git.lastCommit)],
-          ["Git status", f.git.dirty ? "Uncommitted changes" : f.git.ahead > 0 ? `${f.git.ahead} unpushed commits` : !f.git.hasRemote ? "No remote" : "Clean & pushed"],
+          [t("details.fact.branch"), f.git.branch ?? (f.git.detached ? t("details.git.detached") : "—")],
+          [t("details.fact.lastCommit"), ago(f.git.lastCommit)],
+          [t("details.fact.gitStatus"), gitStatus(f.git)],
         ] as [string, string][])
       : []),
     ...f.facts,
@@ -156,8 +166,8 @@ export function DetailsPanel({ finding: f, onClose, onDispose, onKeep, busy }: P
   return (
     <div className="flex flex-col gap-5 p-5">
       <div className="flex items-center justify-between">
-        <span className="text-body-m text-text-secondary">Details</span>
-        <button type="button" aria-label="Close details" onClick={onClose} className={cx("-mr-1 rounded-md p-1.5 text-text-secondary hover:bg-bg-subtle", focusRing)}>
+        <span className="text-body-m text-text-secondary">{t("details.title")}</span>
+        <button type="button" aria-label={t("details.close")} onClick={onClose} className={cx("-mr-1 rounded-md p-1.5 text-text-secondary hover:bg-bg-subtle", focusRing)}>
           <X size={18} aria-hidden="true" />
         </button>
       </div>
@@ -167,13 +177,13 @@ export function DetailsPanel({ finding: f, onClose, onDispose, onKeep, busy }: P
         <div className="min-w-0">
           <h2 className="text-title-m text-text-primary">{f.title}</h2>
           <p className="tabular text-body-s text-text-secondary">
-            {f.items === 0 ? "Empty" : `${formatCount(f.items)} ${f.items === 1 ? "file" : "files"}`}
+            {f.items === 0 ? t("details.empty") : tp("count.files", f.items)}
           </p>
         </div>
       </div>
 
       <div className="flex items-center gap-3">
-        <span className="tabular text-heading-h1 text-text-primary" title={`${f.bytes.toLocaleString("en-US")} bytes on disk`}>
+        <span className="tabular text-heading-h1 text-text-primary" title={t("details.bytesOnDisk", { bytes: formatCount(f.bytes) })}>
           {f.bytes === 0 && f.disposal.kind === "guide" ? "—" : formatBytes(f.bytes)}
         </span>
         <Badge tone={b.tone} srDescription={b.sr}>
@@ -183,23 +193,23 @@ export function DetailsPanel({ finding: f, onClose, onDispose, onKeep, busy }: P
 
       {protectedTier && (
         <p className="rounded-md bg-keep-bg px-3 py-2 text-body-s text-keep-fg">
-          Kept: {protectedTier.detail ?? protectExplain(protectedTier.reason)}. It can't be selected until that changes.
+          {t("details.kept", { reason: protectedTier.detail ?? protectExplain(protectedTier.reason) })}
         </p>
       )}
 
       <section>
-        <h3 className="text-body-m-strong text-text-primary">Why Pare suggests this</h3>
+        <h3 className="text-body-m-strong text-text-primary">{t("details.why")}</h3>
         <p className="mt-1 text-body-s text-text-secondary">{f.why}</p>
       </section>
       <section>
-        <h3 className="text-body-m-strong text-text-primary">If you remove it</h3>
+        <h3 className="text-body-m-strong text-text-primary">{t("details.ifRemoved")}</h3>
         <p className="mt-1 text-body-s text-text-secondary">{f.ifRemoved}</p>
       </section>
 
       {f.disposal.kind === "guide" && <GuideSteps key={f.id} finding={f} />}
       {f.disposal.kind === "command" && (
         <p className="text-body-s text-text-secondary">
-          Pare runs the tool's own cleanup:{" "}
+          {t("details.command")}{" "}
           <code className="font-mono text-mono-s text-text-primary">{[f.disposal.program, ...f.disposal.args].join(" ")}</code>
         </p>
       )}
@@ -212,7 +222,7 @@ export function DetailsPanel({ finding: f, onClose, onDispose, onKeep, busy }: P
           </div>
         ))}
         <div className="flex gap-3 px-3 py-2">
-          <dt className="w-[108px] shrink-0 text-text-tertiary">Location</dt>
+          <dt className="w-[108px] shrink-0 text-text-tertiary">{t("details.location")}</dt>
           <dd className="min-w-0 break-all font-mono text-mono-s text-text-primary" title={location}>
             {tildePath(location, home)}
           </dd>
@@ -227,12 +237,12 @@ export function DetailsPanel({ finding: f, onClose, onDispose, onKeep, busy }: P
         )}
         {f.paths[0] && (
           <Button variant="secondary" icon={FolderOpen} fullWidth onClick={() => void api.openInExplorer(f.paths[0]!)}>
-            Open in Explorer
+            {t("common.openInExplorer")}
           </Button>
         )}
         {f.paths[0] && f.tier.kind !== "protected" && (
           <Button variant="ghost" fullWidth onClick={() => void onKeep(f.paths[0]!)}>
-            Always keep this
+            {t("details.alwaysKeep")}
           </Button>
         )}
       </div>

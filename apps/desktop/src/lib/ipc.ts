@@ -92,6 +92,8 @@ export const api = {
   monitorAlerts: () => call<Growth[]>("monitor_alerts"),
   schedulableRules: () => call<SchedulableRule[]>("schedulable_rules"),
   guideRun: (id: string, action: number) => call<ActionReport>("guide_run", { id, action }),
+  /** Language for backend text (rule descriptions, card titles, messages) from the next scan on. */
+  localeSet: (lang: string) => call<void>("locale_set", { lang }),
 };
 
 export interface Events {

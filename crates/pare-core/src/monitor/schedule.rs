@@ -68,10 +68,10 @@ pub fn schedulable_rules(set: &RuleSet) -> Vec<SchedulableRule> {
         .filter(|(_, r)| eligible(r).is_ok())
         .map(|(t, r)| SchedulableRule {
             id: r.id.clone(),
-            tool: t.tool.name.clone(),
-            title: r.title.clone(),
-            why: r.why.clone(),
-            if_removed: r.if_removed.clone(),
+            tool: crate::i18n::tr(&t.tool.name),
+            title: crate::i18n::tr(&r.title),
+            why: crate::i18n::tr(&r.why),
+            if_removed: crate::i18n::tr(&r.if_removed),
             comes_back: r.comes_back,
             disposal: match r.disposal {
                 DisposalDecl::Delete => "delete",
@@ -150,6 +150,6 @@ pub fn run(
     let mut opts = CleanOptions::new(started);
     opts.recent_ms = cfg.thresholds.recent_hours as i64 * crate::types::MS_PER_HOUR;
     opts.exclusions = settings.exclusions.clone();
-    opts.label = Some("Scheduled cleanup".into());
+    opts.label = Some(crate::i18n::tr("Scheduled cleanup"));
     Some(clean(&findings, env, log, &opts, &|_| {}))
 }

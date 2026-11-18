@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { t } from "../i18n";
 import { api, on } from "../lib/ipc";
 import type {
   CategorySummary,
@@ -40,7 +41,7 @@ export function buildRequest(scope: ScopeKey[], drives: Drive[], folders: KnownF
   if (scope.includes("pc")) {
     const fixed = drives.filter((d) => d.isFixed);
     return {
-      roots: fixed.map((d) => ({ path: d.root, label: `This PC (${d.letter})` })),
+      roots: fixed.map((d) => ({ path: d.root, label: t("scan.root.pc", { letter: d.letter }) })),
       drives: fixed.map((d) => d.root),
       wholeDrives: true,
     };
@@ -48,11 +49,11 @@ export function buildRequest(scope: ScopeKey[], drives: Drive[], folders: KnownF
   const roots = scope.map((k) => {
     switch (k) {
       case "desktop":
-        return { path: folders.desktop, label: "Desktop" };
+        return { path: folders.desktop, label: t("home.scope.desktop") };
       case "downloads":
-        return { path: folders.downloads, label: "Downloads" };
+        return { path: folders.downloads, label: t("home.scope.downloads") };
       case "documents":
-        return { path: folders.documents, label: "Documents" };
+        return { path: folders.documents, label: t("home.scope.documents") };
       default: {
         const path = k.slice(5);
         const custom = settings?.customRoots.find((r) => r.path === path);

@@ -7,10 +7,14 @@ export interface UpdateInfo {
   install: () => Promise<void>;
 }
 
-export type UpdateResult = { kind: "none" } | { kind: "available"; update: UpdateInfo } | { kind: "unavailable"; reason: string };
+/** `preview`: the browser preview can't update; `unsupported`: this build has no updater. */
+export type UpdateResult =
+  | { kind: "none" }
+  | { kind: "available"; update: UpdateInfo }
+  | { kind: "unavailable"; reason: "preview" | "unsupported" };
 
 export async function checkForUpdate(): Promise<UpdateResult> {
-  if (!isTauri) return { kind: "unavailable", reason: "Updates are checked in the installed app." };
+  if (!isTauri) return { kind: "unavailable", reason: "preview" };
   try {
     const { check } = await import("@tauri-apps/plugin-updater");
     const u = await check();
@@ -28,7 +32,7 @@ export async function checkForUpdate(): Promise<UpdateResult> {
       },
     };
   } catch {
-    return { kind: "unavailable", reason: "This build of Pare can't update itself. Download new versions from the Releases page." };
+    return { kind: "unavailable", reason: "unsupported" };
   }
 }
 

@@ -23,6 +23,10 @@ export interface SuggestionCardProps extends Omit<HTMLAttributes<HTMLElement>, "
   onCtaClick?: () => void;
   /** Heading element for the title. Default `h3`. */
   titleAs?: "h2" | "h3" | "h4" | "p";
+  /** Byte formatter for a numeric `size`. Default `formatBytes` ("12.8 GB"). */
+  formatSize?: (bytes: number) => string;
+  /** Byte formatter for the exact-size tooltip. Default `formatBytesExact`. */
+  formatSizeExact?: (bytes: number) => string;
 }
 
 /** Clean-tab suggestion card (Figma `SuggestionCard` 9-46). */
@@ -38,11 +42,13 @@ export function SuggestionCard({
   ctaHref,
   onCtaClick,
   titleAs: Title = "h3",
+  formatSize = formatBytes,
+  formatSizeExact = formatBytesExact,
   className,
   ...props
 }: SuggestionCardProps) {
-  const sizeText = typeof size === "number" ? formatBytes(size) : size;
-  const sizeTitle = typeof size === "number" ? formatBytesExact(size) : undefined;
+  const sizeText = typeof size === "number" ? formatSize(size) : size;
+  const sizeTitle = typeof size === "number" ? formatSizeExact(size) : undefined;
   return (
     <article
       className={cx(

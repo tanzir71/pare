@@ -2,6 +2,13 @@
 
 All notable changes to Pare. Versions follow the milestones in docs/MILESTONES.md.
 
+## M8 — Monitor, schedules, guided compaction, localization (unreleased)
+
+- Growth monitor: while Pare is open (or in the notification area), it checks the folders its rules know about a few times a day and tells you when one grows fast ("~\.codex grew 12 GB this week"). Off until you turn it on.
+- Scheduled cleanups: pick Safe items to clean every week or month. Only built-in, verified Safe rules qualify; each run skips anything changed in the last 24 hours, open in an app or on your "Always keep" list, and shows up in History.
+- Guided cleanup you can run step by step: Docker Desktop and WSL disks (prune, shut down WSL, compact the disk) and Windows Update leftovers (DISM component cleanup). Steps that need administrator rights only run when Pare is already elevated; otherwise Pare shows the command to copy.
+- Spanish translation of the app, including rule descriptions; the language follows Windows or your choice in Settings.
+
 ## v1.0.0 — Trust and distribution (unreleased)
 
 - First-run onboarding: what Safe, Review and Keep mean, Recycle Bin first, and that nothing leaves your PC.

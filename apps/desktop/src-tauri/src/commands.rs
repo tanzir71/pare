@@ -581,6 +581,14 @@ pub fn settings_set(
     Ok(next)
 }
 
+/// The UI's language (M8 localization): text Pare produces from now on (the next scan, the
+/// notification area menu, notifications) uses it.
+#[tauri::command]
+pub fn locale_set(app: AppHandle, lang: String) {
+    pare_core::i18n::set_language(&lang);
+    crate::monitor::refresh_tray(&app);
+}
+
 /// Things that grew a lot in about a week (M8). Empty until the monitor has a day of history.
 #[tauri::command]
 pub fn monitor_alerts(state: State<'_, AppState>) -> CmdResult<Vec<pare_core::monitor::Growth>> {

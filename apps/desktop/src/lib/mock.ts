@@ -222,8 +222,10 @@ function mockProjects(): ProjectsView {
   const mk = (name: string, root: string, status: Project["status"], days: number, branch: string, commits: number, arts: string[], gb: number, extra: Partial<Project["git"] & object> = {}): [Project, Finding | null] => {
     const tier: Finding["tier"] = status === "clean-pushed" ? SAFE : status === "uncommitted" || status === "active" ? { kind: "protected", reason: status === "active" ? "in-use" : "uncommitted" } : REVIEW;
     const git = { repo: root, branch, lastCommit: now - days * DAY, commits, dirty: status === "uncommitted", dirtyFiles: status === "uncommitted" ? 4 : 0, ahead: status === "unpushed" ? 2 : 0, hasRemote: status !== "no-remote", hasUpstream: status !== "no-remote", stashes: 0, detached: false, ...extra };
-    const finding = arts.length ? f("project-build", "D:\\code", name, `${root}\\${arts[0]}`, gb * GB, tier, DEL, { comesBack: "on-demand", git, badge: status, facts: [["Build files", arts.join(", ")], ["Rebuild with", arts.includes("target") ? "cargo build" : "npm install / pnpm install / yarn"]] }) : null;
-    return [{ root, name, git, status, lastChange: now - days * DAY, idleDays: days, ecosystems: [], rebuild: [], artifacts: arts.map((a) => ({ name: a, path: `${root}\\${a}`, bytes: (gb * GB) / arts.length, ecosystem: "node" })), bytes: gb * GB, tier, findingId: finding?.id ?? null, parent: null }, finding];
+    // Like pare-core, the project's `rebuild` list is what the "Rebuild with" fact is built from.
+    const rebuild = arts.length ? [arts.includes("target") ? "cargo build" : "npm install / pnpm install / yarn"] : [];
+    const finding = arts.length ? f("project-build", "D:\\code", name, `${root}\\${arts[0]}`, gb * GB, tier, DEL, { comesBack: "on-demand", git, badge: status, facts: [["Build files", arts.join(", ")], ["Rebuild with", rebuild.join(" · ")]] }) : null;
+    return [{ root, name, git, status, lastChange: now - days * DAY, idleDays: days, ecosystems: [], rebuild, artifacts: arts.map((a) => ({ name: a, path: `${root}\\${a}`, bytes: (gb * GB) / arts.length, ecosystem: "node" })), bytes: gb * GB, tier, findingId: finding?.id ?? null, parent: null }, finding];
   };
   const rows = [
     mk("weather-dashboard", "D:\\code\\weather-dashboard", "clean-pushed", 240, "main", 214, ["node_modules", ".next"], 1.8),
@@ -420,6 +422,8 @@ export const mockBackend: Backend = {
         return r(settings.monitor.enabled ? mockAlerts : []);
       case "schedulable_rules":
         return r(mockSchedulable);
+      case "locale_set":
+        return r(undefined);
       case "guide_run":
         await new Promise((res) => setTimeout(res, 600));
         return r({ op: "op-mock", ok: true, output: "Browser preview: nothing was run.", before: 38 * GB, after: 38 * GB });

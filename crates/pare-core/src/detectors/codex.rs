@@ -99,16 +99,19 @@ pub fn superseded_releases(w: &Walker, base: &Base, matches: &[Match]) -> Vec<Ca
     }
     let n = old.len();
     let c = w.collect(&old, false);
-    base.with_recent_companion(&format!("Old CLI releases ({n})"), c)
-        .into_iter()
-        .map(|mut cand| {
-            if cand.tier.is_selectable() {
-                cand.badge = Some("Old versions".into());
-                cand.note = Some("In-use kept".into());
-            }
-            cand
-        })
-        .collect()
+    base.with_recent_companion(
+        &crate::i18n::trf("Old CLI releases ({n})", &[("n", &n.to_string())]),
+        c,
+    )
+    .into_iter()
+    .map(|mut cand| {
+        if cand.tier.is_selectable() {
+            cand.badge = Some(crate::i18n::tr("Old versions"));
+            cand.note = Some(crate::i18n::tr("In-use kept"));
+        }
+        cand
+    })
+    .collect()
 }
 
 #[cfg(test)]

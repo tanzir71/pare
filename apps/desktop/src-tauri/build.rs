@@ -28,6 +28,7 @@ const COMMANDS: &[&str] = &[
     "monitor_alerts",
     "schedulable_rules",
     "guide_run",
+    "locale_set",
 ];
 
 fn main() {

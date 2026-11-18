@@ -128,8 +128,8 @@ impl CategoryId {
         };
         CategoryInfo {
             id: self,
-            title: title.into(),
-            description: description.into(),
+            title: crate::i18n::tr(title),
+            description: crate::i18n::tr(description),
             icon: icon.into(),
             hue: hue.into(),
         }

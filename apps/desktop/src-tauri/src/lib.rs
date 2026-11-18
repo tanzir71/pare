@@ -70,6 +70,7 @@ pub fn run() {
             commands::monitor_alerts,
             commands::schedulable_rules,
             commands::guide_run,
+            commands::locale_set,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Pare");

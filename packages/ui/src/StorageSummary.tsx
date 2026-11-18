@@ -19,7 +19,17 @@ export interface StorageSummaryProps extends Omit<HTMLAttributes<HTMLElement>, "
   onReviewAll?: () => void;
   /** Heading element for the big number. Default `h2`. */
   headingAs?: "h1" | "h2" | "h3" | "p";
+  /** Text after the big number. Default "can be freed". */
+  reclaimLabel?: ReactNode;
+  /** Legend and bar labels. Defaults: "Safe to free", "To review", "Other used", "Free". */
+  segmentLabels?: Partial<Record<SegmentKey, string>>;
+  /** Byte formatter for the visible numbers. Default `formatBytes` ("12.8 GB"). */
+  formatSize?: (bytes: number) => string;
+  /** Byte formatter for the exact-size tooltip. Default `formatBytesExact`. */
+  formatSizeExact?: (bytes: number) => string;
 }
+
+type SegmentKey = "other" | "safe" | "review" | "free";
 
 const SEGMENTS = [
   { key: "other", label: "Other used", bar: "bg-accent-default" },
@@ -48,14 +58,21 @@ export function StorageSummary({
   onFreeUp,
   onReviewAll,
   headingAs: Heading = "h2",
+  reclaimLabel = "can be freed",
+  segmentLabels,
+  formatSize = formatBytes,
+  formatSizeExact = formatBytesExact,
   className,
   ...props
 }: StorageSummaryProps) {
   const bytes = { safe: safeBytes, review: reviewBytes, other: otherUsedBytes, free: freeBytes };
   const total = safeBytes + reviewBytes + otherUsedBytes + freeBytes;
   const reclaimable = safeBytes + reviewBytes;
-  const labelFor = (key: keyof typeof bytes) => SEGMENTS.find((s) => s.key === key)!;
-  const barLabel = LEGEND_ORDER.map((k) => `${labelFor(k).label} ${formatBytes(bytes[k])}`).join(
+  const labelFor = (key: SegmentKey) => {
+    const s = SEGMENTS.find((x) => x.key === key)!;
+    return { ...s, label: segmentLabels?.[key] ?? s.label };
+  };
+  const barLabel = LEGEND_ORDER.map((k) => `${labelFor(k).label} ${formatSize(bytes[k])}`).join(
     ", ",
   );
 
@@ -72,11 +89,11 @@ export function StorageSummary({
           <Heading className="m-0 flex flex-wrap items-baseline gap-x-2.5 font-semibold">
             <span
               className="text-numeric-xl tabular-nums text-text-primary @min-[720px]:text-display-l"
-              title={formatBytesExact(reclaimable)}
+              title={formatSizeExact(reclaimable)}
             >
-              {formatBytes(reclaimable)}
+              {formatSize(reclaimable)}
             </span>
-            <span className="text-heading-h3 text-text-secondary">can be freed</span>
+            <span className="text-heading-h3 text-text-secondary">{reclaimLabel}</span>
           </Heading>
           {total > 0 ? (
             <div
@@ -105,7 +122,7 @@ export function StorageSummary({
                   )}
                 />
                 <span className="tabular-nums">
-                  {labelFor(k).label} · {formatBytes(bytes[k])}
+                  {labelFor(k).label} · {formatSize(bytes[k])}
                 </span>
               </li>
             ))}
@@ -119,7 +136,7 @@ export function StorageSummary({
             onClick={onFreeUp}
             disabled={safeBytes <= 0}
           >
-            {primaryLabel ?? `Free up ${formatBytes(safeBytes)}`}
+            {primaryLabel ?? `Free up ${formatSize(safeBytes)}`}
           </Button>
           {caption ? <p className="m-0 text-caption text-text-tertiary">{caption}</p> : null}
           <Button variant="ghost" onClick={onReviewAll}>

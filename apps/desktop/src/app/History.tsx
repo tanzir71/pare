@@ -2,36 +2,57 @@ import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, History as HistoryIcon, RotateCcw, Trash2 } from "lucide-react";
 import { Badge, Button, cx, focusRing, type BadgeTone } from "@pare/ui";
 import { api } from "../lib/ipc";
-import { dateTime, formatBytes, plural } from "../lib/format";
+import { dateTime, formatBytes } from "../lib/format";
 import type { HistoryDetail, HistoryOp, ItemStatus } from "../lib/types";
+import { t, tp, useT, type MessageKey, type PluralKey } from "../i18n";
 import { useApp } from "../state/app";
 import { Banner } from "../components/Banner";
 
-const DISPOSAL_LABEL: Record<string, string> = {
-  delete: "removed",
-  recycle: "to Recycle Bin",
-  command: "tool command",
-  "empty-recycle-bin": "bin emptied",
+const DISPOSAL_LABEL: Record<string, MessageKey> = {
+  delete: "history.disposal.delete",
+  recycle: "history.disposal.recycle",
+  command: "history.disposal.command",
+  "empty-recycle-bin": "history.disposal.empty-recycle-bin",
 };
 
+const DISPOSAL_COUNT: Record<string, PluralKey> = {
+  delete: "history.disposalCount.delete",
+  recycle: "history.disposalCount.recycle",
+  command: "history.disposalCount.command",
+  "empty-recycle-bin": "history.disposalCount.empty-recycle-bin",
+};
+
+/** "removed", "to Recycle Bin"…; unknown disposals show as they are. */
+function disposalLabel(kind: string): string {
+  const key = DISPOSAL_LABEL[kind];
+  return key ? t(key) : kind;
+}
+
+/** "3 removed", "1 to Recycle Bin"…; unknown disposals show as "n kind". */
+function disposalCount(kind: string, n: number): string {
+  const key = DISPOSAL_COUNT[kind];
+  return key ? tp(key, n) : `${n} ${kind}`;
+}
+
 function statusBadge(s: ItemStatus, restored: boolean, purged: boolean): { tone: BadgeTone; label: string } {
-  if (restored) return { tone: "accent", label: "Restored" };
-  if (purged) return { tone: "neutral", label: "Emptied" };
+  if (restored) return { tone: "accent", label: t("history.status.restored") };
+  if (purged) return { tone: "neutral", label: t("history.status.emptied") };
   switch (s) {
     case "ok":
-      return { tone: "safe", label: "Done" };
+      return { tone: "safe", label: t("history.status.ok") };
     case "partial":
-      return { tone: "review", label: "Partly done" };
+      return { tone: "review", label: t("history.status.partial") };
     case "failed":
-      return { tone: "protected", label: "Failed" };
+      return { tone: "protected", label: t("history.status.failed") };
     case "skipped":
-      return { tone: "neutral", label: "Skipped" };
+      return { tone: "neutral", label: t("history.status.skipped") };
     default:
-      return { tone: "neutral", label: "Pending" };
+      return { tone: "neutral", label: t("history.status.pending") };
   }
 }
 
 export function History({ op }: { op?: string }) {
+  const { t, tp } = useT();
   const go = useApp((s) => s.go);
   const [ops, setOps] = useState<HistoryOp[] | null>(null);
   const [detail, setDetail] = useState<HistoryDetail | null>(null);
@@ -56,7 +77,7 @@ export function History({ op }: { op?: string }) {
         <header className="flex items-center gap-3">
           <button
             type="button"
-            aria-label="Back to History"
+            aria-label={t("history.back")}
             onClick={() => go({ name: "history" })}
             className={cx("flex size-9 items-center justify-center rounded-md border border-border-default bg-bg-surface text-text-secondary hover:bg-bg-subtle", focusRing)}
           >
@@ -65,7 +86,11 @@ export function History({ op }: { op?: string }) {
           <div className="mr-auto">
             <h1 className="text-heading-h2">{dateTime(d.op.started)}</h1>
             <p className="tabular text-body-s text-text-secondary">
-              {formatBytes(d.op.freedNow)} freed · {formatBytes(d.op.recycled)} to Recycle Bin · {plural(d.op.items, "item")}
+              {t("history.opSummary", {
+                freed: formatBytes(d.op.freedNow),
+                recycled: formatBytes(d.op.recycled),
+                items: tp("count.items", d.op.items),
+              })}
             </p>
           </div>
           {d.op.restorable > 0 && (
@@ -76,25 +101,27 @@ export function History({ op }: { op?: string }) {
                 onClick={async () => {
                   const r = await api.historyRestore(d.op.id);
                   setMessage(
-                    `${plural(r.restored, "item")} restored.` +
-                      (r.collisions.length ? ` ${plural(r.collisions.length, "item")} kept in the Recycle Bin because something is already at the original location.` : "") +
-                      (r.missing.length ? ` ${plural(r.missing.length, "item")} are no longer in the Recycle Bin.` : ""),
+                    [
+                      tp("history.restoredCount", r.restored),
+                      ...(r.collisions.length ? [tp("history.collisions", r.collisions.length)] : []),
+                      ...(r.missing.length ? [tp("history.missing", r.missing.length)] : []),
+                    ].join(" "),
                   );
                   await refresh();
                 }}
               >
-                Restore all
+                {t("history.restoreAll")}
               </Button>
               <Button
                 variant="ghost"
                 icon={Trash2}
                 onClick={async () => {
                   const r = await api.recyclePurgePareItems(d.op.id);
-                  setMessage(`Emptied ${plural(r.items, "item")} (${formatBytes(r.bytes)}) from the Recycle Bin.`);
+                  setMessage(t("history.emptiedOp", { items: tp("count.items", r.items), size: formatBytes(r.bytes) }));
                   await refresh();
                 }}
               >
-                Empty these now
+                {t("history.emptyThese")}
               </Button>
             </>
           )}
@@ -111,12 +138,12 @@ export function History({ op }: { op?: string }) {
                   {it.error && <p className="truncate text-caption text-keep-fg">{it.error}</p>}
                   {it.output && (
                     <details className="mt-1">
-                      <summary className="cursor-pointer text-caption text-text-secondary">Tool output</summary>
+                      <summary className="cursor-pointer text-caption text-text-secondary">{t("history.toolOutput")}</summary>
                       <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-bg-subtle p-2 font-mono text-mono-s text-text-secondary">{it.output}</pre>
                     </details>
                   )}
                 </div>
-                <span className="text-caption text-text-tertiary">{DISPOSAL_LABEL[it.disposal] ?? it.disposal}</span>
+                <span className="text-caption text-text-tertiary">{disposalLabel(it.disposal)}</span>
                 <Badge tone={b.tone}>{b.label}</Badge>
                 {it.recycled > 0 && !it.restored && !it.purged && (
                   <Button
@@ -125,15 +152,15 @@ export function History({ op }: { op?: string }) {
                       const r = await api.historyRestore(d.op.id, [it.findingId]);
                       setMessage(
                         r.restored
-                          ? `Restored ${it.title}.`
+                          ? t("history.restoredOne", { title: it.title })
                           : r.collisions.length
-                            ? `${it.title} wasn't restored: something already exists at ${r.collisions[0]}.`
-                            : `${it.title} is no longer in the Recycle Bin.`,
+                            ? t("history.collision", { title: it.title, path: r.collisions[0] ?? "" })
+                            : t("history.missingOne", { title: it.title }),
                       );
                       await refresh();
                     }}
                   >
-                    Restore
+                    {t("history.restore")}
                   </Button>
                 )}
                 <span className="tabular w-20 text-right text-body-m">{formatBytes(it.freed + it.recycled || it.bytes)}</span>
@@ -149,8 +176,8 @@ export function History({ op }: { op?: string }) {
     <div className="flex flex-col gap-5 pb-10 pl-4 pr-8 pt-6">
       <header className="flex items-center gap-3">
         <div className="mr-auto">
-          <h1 className="text-heading-h1">History</h1>
-          <p className="text-body-s text-text-secondary">Every cleanup Pare ran on this PC, newest first.</p>
+          <h1 className="text-heading-h1">{t("history.title")}</h1>
+          <p className="text-body-s text-text-secondary">{t("history.subtitle")}</p>
         </div>
         {restorableBytes > 0 && (
           <Button
@@ -158,11 +185,11 @@ export function History({ op }: { op?: string }) {
             icon={Trash2}
             onClick={async () => {
               const r = await api.recyclePurgePareItems();
-              setMessage(`Emptied ${plural(r.items, "item")} (${formatBytes(r.bytes)}) Pare had moved to the Recycle Bin.`);
+              setMessage(t("history.emptiedAll", { items: tp("count.items", r.items), size: formatBytes(r.bytes) }));
               await refresh();
             }}
           >
-            Empty Pare's items now
+            {t("history.emptyPareItems")}
           </Button>
         )}
       </header>
@@ -170,8 +197,8 @@ export function History({ op }: { op?: string }) {
       {ops && ops.length === 0 && (
         <div className="flex flex-col items-center gap-2 rounded-xl border border-border-default bg-bg-surface px-8 py-14 text-center">
           <HistoryIcon size={28} className="text-text-tertiary" aria-hidden="true" />
-          <p className="text-heading-h3">No cleanups yet</p>
-          <p className="text-body-m text-text-secondary">When you free up space, each run shows up here with exactly what happened.</p>
+          <p className="text-heading-h3">{t("history.empty.title")}</p>
+          <p className="text-body-m text-text-secondary">{t("history.empty.body")}</p>
         </div>
       )}
       {ops && ops.length > 0 && (
@@ -186,14 +213,14 @@ export function History({ op }: { op?: string }) {
                 <div className="min-w-0 flex-1">
                   <p className="text-body-m-strong">{dateTime(o.started)}</p>
                   <p className="text-body-s text-text-secondary">
-                    {plural(o.items, "item")}
-                    {Object.entries(o.disposals).map(([k, n]) => ` · ${n} ${DISPOSAL_LABEL[k] ?? k}`)}
-                    {o.failed > 0 && ` · ${o.failed} failed`}
+                    {tp("count.items", o.items)}
+                    {Object.entries(o.disposals).map(([k, n]) => ` · ${disposalCount(k, n)}`)}
+                    {o.failed > 0 && ` · ${t("history.failedCount", { n: o.failed })}`}
                   </p>
                 </div>
                 <div className="tabular text-right">
-                  <p className="text-body-m-strong">{formatBytes(o.freedNow)} freed</p>
-                  {o.recycled > 0 && <p className="text-caption text-text-tertiary">{formatBytes(o.recycled)} to Recycle Bin</p>}
+                  <p className="text-body-m-strong">{t("history.freed", { size: formatBytes(o.freedNow) })}</p>
+                  {o.recycled > 0 && <p className="text-caption text-text-tertiary">{t("history.toBin", { size: formatBytes(o.recycled) })}</p>}
                 </div>
                 <ChevronRight size={18} className="text-text-tertiary" aria-hidden="true" />
               </button>

@@ -1,15 +1,47 @@
 // Copy formatting (DESIGN §1 Type; PRD §7 Voice). Decimal units, tabular numbers.
-import { formatBytes } from "@pare/ui";
-import type { ComesBack, Growth, ProtectReason, Tier, Timestamp } from "./types";
+// Everything here follows the active UI locale (i18n/index.ts) through Intl and the catalogs.
+import { formatBytes as formatBytesBase } from "@pare/ui";
+import { formatNumber, getLocale, intlLocale, t, tp, type Locale } from "../i18n";
+import type { CategoryId, ComesBack, Growth, ProtectReason, Tier, Timestamp } from "./types";
 
-export { formatBytes, formatBytesExact } from "@pare/ui";
+const decimalSeparators = new Map<Locale, string>();
 
-export function formatCount(n: number): string {
-  return n.toLocaleString("en-US");
+function decimalSeparator(): string {
+  const locale = getLocale();
+  let sep = decimalSeparators.get(locale);
+  if (sep === undefined) {
+    sep = new Intl.NumberFormat(intlLocale(locale)).formatToParts(1.5).find((p) => p.type === "decimal")?.value ?? ".";
+    decimalSeparators.set(locale, sep);
+  }
+  return sep;
 }
 
-export function plural(n: number, one: string, many = `${one}s`): string {
-  return `${formatCount(n)} ${n === 1 ? one : many}`;
+/** "12.8 GB" (en) or "12,8 GB" (es). Units are the same in every language. */
+export function formatBytes(bytes: number): string {
+  const s = formatBytesBase(bytes);
+  const sep = decimalSeparator();
+  return sep === "." ? s : s.replace(".", sep);
+}
+
+/** Exact byte count for tooltips: "1,234,567 bytes". */
+export function formatBytesExact(bytes: number): string {
+  return tp("count.bytes", Math.max(0, Math.round(bytes)));
+}
+
+export function formatCount(n: number): string {
+  return formatNumber(n);
+}
+
+/** "a", "a and b", "a, b and c" in the active language. */
+export function andList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return t("common.and", { a: items.slice(0, -1).join(", "), b: items.at(-1)! });
+}
+
+/** "a", "a or b", "a, b or c" in the active language. */
+export function orList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  return t("common.or", { a: items.slice(0, -1).join(", "), b: items.at(-1)! });
 }
 
 const DAY = 86_400_000;
@@ -18,34 +50,33 @@ export function durationPhrase(ms: number): string {
   const days = Math.max(0, Math.floor(ms / DAY));
   if (days < 1) {
     const hours = Math.floor(ms / 3_600_000);
-    return hours < 1 ? "less than an hour" : plural(hours, "hour");
+    return hours < 1 ? t("time.lessThanHour") : tp("time.hours", hours);
   }
-  if (days < 45) return plural(days, "day");
-  if (days < 365) return plural(Math.round(days / 30.44), "month");
-  return plural(Math.floor(days / 365.25), "year");
+  if (days < 45) return tp("time.days", days);
+  if (days < 365) return tp("time.months", Math.round(days / 30.44));
+  return tp("time.years", Math.floor(days / 365.25));
 }
 
-export function ago(t: Timestamp | null | undefined, now = Date.now()): string {
-  if (!t) return "—";
-  const d = now - t;
-  if (d < 0) return "just now";
-  if (d < 60_000) return "just now";
+export function ago(t0: Timestamp | null | undefined, now = Date.now()): string {
+  if (!t0) return "—";
+  const d = now - t0;
+  if (d < 60_000) return t("time.justNow");
   if (d < DAY) {
     const mins = Math.floor(d / 60_000);
-    if (mins < 60) return `${plural(mins, "min")} ago`;
-    return `${plural(Math.floor(mins / 60), "hour")} ago`;
+    if (mins < 60) return t("time.ago", { time: tp("time.mins", mins) });
+    return t("time.ago", { time: tp("time.hours", Math.floor(mins / 60)) });
   }
-  return `${durationPhrase(d)} ago`;
+  return t("time.ago", { time: durationPhrase(d) });
 }
 
-export function date(t: Timestamp | null | undefined): string {
-  if (!t) return "—";
-  return new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+export function date(ts: Timestamp | null | undefined): string {
+  if (!ts) return "—";
+  return new Date(ts).toLocaleDateString(intlLocale(), { month: "short", day: "numeric", year: "numeric" });
 }
 
-export function dateTime(t: Timestamp | null | undefined): string {
-  if (!t) return "—";
-  return new Date(t).toLocaleString("en-US", {
+export function dateTime(ts: Timestamp | null | undefined): string {
+  if (!ts) return "—";
+  return new Date(ts).toLocaleString(intlLocale(), {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -55,63 +86,57 @@ export function dateTime(t: Timestamp | null | undefined): string {
 }
 
 export function comesBackLabel(c: ComesBack): string {
-  return c === "automatically" ? "Yes, automatically" : c === "on-demand" ? "Re-downloads when needed" : "No";
+  return t(`comesBack.${c}`);
+}
+
+/** Category card title and description, by id (the backend's copies are English-only). */
+export function categoryTitle(id: CategoryId): string {
+  return t(`category.${id}.title`);
+}
+
+export function categoryDescription(id: CategoryId): string {
+  return t(`category.${id}.description`);
 }
 
 export function protectLabel(r: ProtectReason): string {
   switch (r) {
     case "in-use":
     case "tool-running":
-      return "In use";
+      return t("protect.label.inUse");
     case "uncommitted":
-      return "Uncommitted";
+      return t("protect.label.uncommitted");
     case "recently-modified":
-      return "Recent";
+      return t("protect.label.recent");
     case "cloud-only":
-      return "Cloud only";
+      return t("protect.label.cloudOnly");
     default:
-      return "Keep";
+      return t("protect.label.keep");
   }
 }
 
 export function protectExplain(r: ProtectReason): string {
-  switch (r) {
-    case "recently-modified":
-      return "Changed in the last 24 hours";
-    case "in-use":
-      return "Open in another app";
-    case "tool-running":
-      return "The app that owns it is running";
-    case "uncommitted":
-      return "Part of uncommitted work in a git repository";
-    case "system-path":
-      return "A Windows or system location Pare never touches";
-    case "cloud-only":
-      return "Stored in the cloud; removing it locally frees nothing";
-    case "excluded":
-      return "You chose to always keep this";
-    case "changed-since-scan":
-      return "Changed since the scan";
-    case "never-touch":
-      return "Settings or credentials Pare never touches";
-  }
+  return t(`protect.why.${r}`);
 }
 
 export type BadgeTone = "safe" | "review" | "protected" | "neutral" | "accent";
 
 export function tierBadge(
-  t: Tier,
+  tier: Tier,
   custom?: string | null,
   disposal?: { kind: string },
 ): { tone: BadgeTone; label: string; sr: string } {
-  if (disposal?.kind === "guide" && t.kind !== "protected") {
-    return { tone: "neutral", label: "Guide", sr: "Guide: Pare shows the steps and never removes this itself" };
+  if (disposal?.kind === "guide" && tier.kind !== "protected") {
+    return { tone: "neutral", label: t("tier.guide"), sr: t("tier.guideSr") };
   }
-  if (t.kind === "protected") {
-    return { tone: "protected", label: protectLabel(t.reason), sr: `Protected: ${t.detail ?? protectExplain(t.reason)}` };
+  if (tier.kind === "protected") {
+    return {
+      tone: "protected",
+      label: protectLabel(tier.reason),
+      sr: t("tier.protectedSr", { detail: tier.detail ?? protectExplain(tier.reason) }),
+    };
   }
-  if (t.kind === "safe") return { tone: "safe", label: custom ?? "Safe", sr: "Safe: comes back or isn't needed" };
-  return { tone: "review", label: custom ?? "Review", sr: "Review: your data, check before removing" };
+  if (tier.kind === "safe") return { tone: "safe", label: custom ?? t("tier.safe"), sr: t("tier.safeSr") };
+  return { tone: "review", label: custom ?? t("tier.review"), sr: t("tier.reviewSr") };
 }
 
 /** `C:\Users\ana\.codex` → `~\.codex` */
@@ -124,6 +149,8 @@ export function tildePath(p: string, home: string | undefined): string {
 export function growthPhrase(g: Growth, home: string | undefined, now = Date.now()): string {
   const what = g.path ? tildePath(g.path, home) : g.label;
   const days = Math.round((now - g.since) / 86_400_000);
-  const when = days >= 6 ? "this week" : days <= 1 ? "since yesterday" : `in ${days} days`;
-  return `${what} grew ${formatBytes(Math.max(0, g.to - g.from))} ${when}`;
+  const size = formatBytes(Math.max(0, g.to - g.from));
+  if (days >= 6) return t("growth.thisWeek", { what, size });
+  if (days <= 1) return t("growth.sinceYesterday", { what, size });
+  return t("growth.inDays", { what, size, days });
 }

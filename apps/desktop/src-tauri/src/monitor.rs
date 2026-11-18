@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use pare_core::format::format_bytes;
+use pare_core::i18n::{tr, trf};
 use pare_core::monitor::{self, Growth};
 use pare_core::platform::now_ms;
 use pare_core::types::MS_PER_DAY;
@@ -57,9 +58,9 @@ pub fn sync_tray(app: &AppHandle) {
 }
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "Open Pare", true, None::<&str>)?;
-    let check = MenuItem::with_id(app, "check", "Check for growth now", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Pare", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", tr("Open Pare"), true, None::<&str>)?;
+    let check = MenuItem::with_id(app, "check", tr("Check for growth now"), true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", tr("Quit Pare"), true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(app, &[&open, &check, &sep, &quit])?;
     let mut b = TrayIconBuilder::with_id(TRAY_ID)
@@ -110,14 +111,28 @@ pub fn alert_text(g: &Growth, home: &std::path::Path, now: i64) -> String {
         None => g.label.clone(),
     };
     let days = ((now - g.since) as f64 / MS_PER_DAY as f64).round() as i64;
-    let when = if days >= 6 {
-        "this week".to_string()
+    let size = format_bytes(g.delta());
+    let args = [("what", what.as_str()), ("size", size.as_str())];
+    if days >= 6 {
+        trf("{what} grew {size} this week", &args)
     } else if days <= 1 {
-        "since yesterday".to_string()
+        trf("{what} grew {size} since yesterday", &args)
     } else {
-        format!("in {days} days")
-    };
-    format!("{what} grew {} {when}", format_bytes(g.delta()))
+        trf(
+            "{what} grew {size} in {n} days",
+            &[args[0], args[1], ("n", &days.to_string())],
+        )
+    }
+}
+
+/// Rebuild the icon so its menu uses the current language.
+pub fn refresh_tray(app: &AppHandle) {
+    if app.tray_by_id(TRAY_ID).is_some() {
+        let _ = app.remove_tray_by_id(TRAY_ID);
+        if let Err(e) = build_tray(app) {
+            tracing::warn!(%e, "couldn't recreate the notification area icon");
+        }
+    }
 }
 
 #[derive(Serialize, Clone)]
@@ -161,9 +176,9 @@ pub fn run(app: &AppHandle, manual: bool) {
         let alerts = monitor::current_alerts(&env, &settings);
         let body = match alerts.first() {
             Some(g) => alert_text(g, &env.home, now),
-            None => format!(
-                "Nothing grew by more than {} GB this week.",
-                settings.monitor.alert_gb
+            None => trf(
+                "Nothing grew by more than {n} GB this week.",
+                &[("n", &settings.monitor.alert_gb.to_string())],
             ),
         };
         notify(app, &body);
@@ -180,9 +195,9 @@ pub fn run(app: &AppHandle, manual: bool) {
             if report.freed_now + report.recycled > 0 {
                 notify(
                     app,
-                    &format!(
-                        "Scheduled cleanup freed {}. See History to review it.",
-                        format_bytes(report.freed_now + report.recycled)
+                    &trf(
+                        "Scheduled cleanup freed {size}. See History to review it.",
+                        &[("size", &format_bytes(report.freed_now + report.recycled))],
                     ),
                 );
             }

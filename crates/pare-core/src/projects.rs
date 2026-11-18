@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::env::Env;
 use crate::format::{age_phrase, duration_phrase};
+use crate::i18n::{tr, trf};
 use crate::platform::{self, eq_component};
 use crate::rules::EcosystemDef;
 use crate::scan::measure::{Candidate, Measured, measure_path};
@@ -35,6 +36,17 @@ pub enum ProjectStatus {
 }
 
 impl ProjectStatus {
+    pub const ALL: [ProjectStatus; 8] = [
+        ProjectStatus::CleanPushed,
+        ProjectStatus::Active,
+        ProjectStatus::Unpushed,
+        ProjectStatus::NoUpstream,
+        ProjectStatus::NoRemote,
+        ProjectStatus::Detached,
+        ProjectStatus::Uncommitted,
+        ProjectStatus::NotGit,
+    ];
+
     pub fn label(self) -> &'static str {
         match self {
             ProjectStatus::CleanPushed => "Clean & pushed",
@@ -439,31 +451,44 @@ pub fn analyze(
             .collect::<Vec<_>>()
             .join(", ");
         c.why = match status {
-            ProjectStatus::CleanPushed => format!(
-                "Build files and dependencies ({list}) in a project that's committed, pushed and unchanged for {}. Git ignores these folders, so they aren't part of your code.",
-                last_change
-                    .map(|t| duration_phrase(now - t))
-                    .unwrap_or_default()
+            ProjectStatus::CleanPushed => trf(
+                "Build files and dependencies ({list}) in a project that's committed, pushed and unchanged for {age}. Git ignores these folders, so they aren't part of your code.",
+                &[
+                    ("list", &list),
+                    (
+                        "age",
+                        &last_change
+                            .map(|t| duration_phrase(now - t))
+                            .unwrap_or_default(),
+                    ),
+                ],
             ),
-            ProjectStatus::NotGit => format!(
-                "Build files and dependencies ({list}). This folder isn't in git, so Pare can't confirm they're unused."
+            ProjectStatus::NotGit => trf(
+                "Build files and dependencies ({list}). This folder isn't in git, so Pare can't confirm they're unused.",
+                &[("list", &list)],
             ),
-            other => format!(
-                "Build files and dependencies ({list}). The project is {}, so check before removing.",
-                other.label().to_lowercase()
+            other => trf(
+                "Build files and dependencies ({list}). The project is {status}, so check before removing.",
+                &[
+                    ("list", &list),
+                    ("status", &tr(other.label()).to_lowercase()),
+                ],
             ),
         };
         c.if_removed = if rebuild.is_empty() {
-            "Rebuild them the next time you work on the project.".into()
+            tr("Rebuild them the next time you work on the project.")
         } else {
-            format!("Rebuild them anytime with {}.", rebuild.join(" or "))
+            trf(
+                "Rebuild them anytime with {commands}.",
+                &[("commands", &rebuild.join(&tr(" or ")))],
+            )
         };
-        c.note = last_change.map(|t| format!("Last change {}", age_phrase(now, t)));
-        c.badge = Some(status.label().to_string());
+        c.note = last_change.map(|t| trf("Last change {when}", &[("when", &age_phrase(now, t))]));
+        c.badge = Some(tr(status.label()));
         c.git = info.clone();
-        c.facts.push(("Build files".into(), list));
+        c.facts.push((tr("Build files"), list));
         if !rebuild.is_empty() {
-            c.facts.push(("Rebuild with".into(), rebuild.join(" · ")));
+            c.facts.push((tr("Rebuild with"), rebuild.join(" · ")));
         }
         c.measured = Some(Measured {
             bytes,
@@ -594,15 +619,20 @@ pub fn stale_worktrees(root: &Path, now: Timestamp) -> Vec<Candidate> {
             ],
         };
         c.comes_back = ComesBack::OnDemand;
-        c.why = format!(
-            "A git worktree of {project} on branch {branch}, already merged into the main branch, with no uncommitted changes."
+        c.why = trf(
+            "A git worktree of {project} on branch {branch}, already merged into the main branch, with no uncommitted changes.",
+            &[("project", &project), ("branch", &branch)],
         );
-        c.if_removed = format!(
-            "Git removes the worktree folder. The branch {branch} and its commits stay in the repository; add the worktree again anytime."
+        c.if_removed = trf(
+            "Git removes the worktree folder. The branch {branch} and its commits stay in the repository; add the worktree again anytime.",
+            &[("branch", &branch)],
         );
-        c.note = Some(format!("Changed {}", age_phrase(now, m.newest)));
-        c.badge = Some("Merged".into());
-        c.facts.push(("Branch".into(), branch));
+        c.note = Some(trf(
+            "Changed {when}",
+            &[("when", &age_phrase(now, m.newest))],
+        ));
+        c.badge = Some(tr("Merged"));
+        c.facts.push((tr("Branch"), branch));
         let mut dates = Dates::default();
         dates.include(m.created_min, m.newest, 0);
         c.measured = Some(Measured {

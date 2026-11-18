@@ -198,6 +198,8 @@ Sizes assume one developer working with Claude Code. Treat them as relative, not
 
 ## M8+ — Later
 
+**Status (November 2026):** all items below are built. The monitor and schedules run only while Pare is open (no service, scheduled task or startup entry). Admin steps (VHDX compaction, DISM) run only when Pare is already elevated; otherwise Pare shows the command to run in an administrator terminal. Localization ships English and Spanish.
+
 - Tray monitor and growth alerts ("`~\.codex` grew 12 GB this week")
 - Scheduled cleanups for Safe-only rules (opt-in, per rule)
 - `pare` CLI (`pare scan --json`, `pare clean --rule claude-code.debug-logs --dry-run`) and an **MCP server**, so coding agents can ask "what's eating my disk?" and propose (never execute) cleanups

@@ -35,7 +35,9 @@ Either way, SmartScreen reputation builds up over time.
 
 After v1.0.0 is published:
 
-1. Copy `SHA256SUMS.txt`'s hash for the installer into `packaging/winget/manifests/t/tanzir71/Pare/1.0.0/tanzir71.Pare.installer.yaml`.
+`packaging/winget/manifests/t/tanzir71/Pare/0.1.0/` is ready for the v0.1.0 release (hash from its `SHA256SUMS.txt`); submit it only after that release is published, because winget's validation downloads the installer. For later versions:
+
+1. Copy `SHA256SUMS.txt`'s hash for the installer into `packaging/winget/manifests/t/tanzir71/Pare/<version>/tanzir71.Pare.installer.yaml`.
 2. Validate: `winget validate packaging/winget/manifests/t/tanzir71/Pare/1.0.0`.
 3. Open a PR to `microsoft/winget-pkgs` with that folder (or use `wingetcreate submit`).
 

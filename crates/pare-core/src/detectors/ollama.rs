@@ -128,8 +128,12 @@ pub fn models(w: &Walker, base: &Base, matches: &[Match]) -> Vec<Candidate> {
                 })
                 .collect();
             let (bytes, logical, _) = account(&mut accs);
-            let mut cand = Candidate::new(&w.rule.id, base.category, format!("Model {}", mf.name));
-            cand.source = base.tool.tool.name.clone();
+            let mut cand = Candidate::new(
+                &w.rule.id,
+                base.category,
+                crate::i18n::trf("Model {name}", &[("name", &mf.name)]),
+            );
+            cand.source = crate::i18n::tr(&base.tool.tool.name);
             cand.source_path = Some(models_dir.to_path_buf());
             cand.created_by = Some("Ollama".into());
             cand.extra_paths = vec![mf.path.clone()];
@@ -139,14 +143,15 @@ pub fn models(w: &Walker, base: &Base, matches: &[Match]) -> Vec<Candidate> {
                 args: vec!["rm".into(), mf.name.clone()],
             };
             cand.comes_back = w.rule.comes_back;
-            cand.why = w.rule.why.clone();
-            cand.if_removed = w.rule.if_removed.clone();
-            cand.note = Some(format!(
-                "Pulled {}",
-                crate::format::age_phrase(w.ctx.now, mf.modified)
+            cand.why = crate::i18n::tr(&w.rule.why);
+            cand.if_removed = crate::i18n::tr(&w.rule.if_removed);
+            cand.note = Some(crate::i18n::trf(
+                "Pulled {when}",
+                &[("when", &crate::format::age_phrase(w.ctx.now, mf.modified))],
             ));
-            cand.facts.push(("Model".into(), mf.name.clone()));
-            cand.facts.push(("Rule".into(), w.rule.id.clone()));
+            cand.facts.push((crate::i18n::tr("Model"), mf.name.clone()));
+            cand.facts
+                .push((crate::i18n::tr("Rule"), w.rule.id.clone()));
             let mut dates = Dates::default();
             dates.include(mf.created, mf.modified, 0);
             cand.measured = Some(Measured {

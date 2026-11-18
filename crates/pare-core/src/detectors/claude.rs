@@ -5,6 +5,7 @@
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 
+use crate::i18n::{tr, trf};
 use crate::platform;
 use crate::rules::engine::{Base, Walker};
 use crate::rules::matcher::Match;
@@ -152,14 +153,20 @@ pub fn orphaned_transcripts(w: &Walker, base: &Base, matches: &[Match]) -> Vec<C
     if !orphans.is_empty() {
         let n = orphans.len();
         let c = w.collect(&orphans, false);
-        for mut cand in base.with_recent_companion("Transcripts of deleted projects", c) {
+        for mut cand in base.with_recent_companion(&tr("Transcripts of deleted projects"), c) {
             if cand.tier.is_selectable() {
-                cand.badge = Some("Orphaned".into());
-                cand.note = Some("Folders deleted".into());
-                cand.why = format!(
-                    "These Claude Code transcripts belong to {n} project folder{} that no longer exist on this PC.",
-                    if n == 1 { "" } else { "s" }
-                );
+                cand.badge = Some(tr("Orphaned"));
+                cand.note = Some(tr("Folders deleted"));
+                cand.why = if n == 1 {
+                    tr(
+                        "These Claude Code transcripts belong to a project folder that no longer exists on this PC.",
+                    )
+                } else {
+                    trf(
+                        "These Claude Code transcripts belong to {n} project folders that no longer exist on this PC.",
+                        &[("n", &n.to_string())],
+                    )
+                };
             }
             out.push(cand);
         }
@@ -167,11 +174,13 @@ pub fn orphaned_transcripts(w: &Walker, base: &Base, matches: &[Match]) -> Vec<C
     if !maybe.is_empty() {
         let c = w.collect(&maybe, false);
         for mut cand in
-            base.with_recent_companion("Transcripts that may belong to deleted projects", c)
+            base.with_recent_companion(&tr("Transcripts that may belong to deleted projects"), c)
         {
             if cand.tier.is_selectable() {
                 cand.tier = Tier::Review;
-                cand.why = "Pare couldn't find the project folders these transcripts were recorded in. They may have been moved or deleted.".into();
+                cand.why = tr(
+                    "Pare couldn't find the project folders these transcripts were recorded in. They may have been moved or deleted.",
+                );
             }
             out.push(cand);
         }

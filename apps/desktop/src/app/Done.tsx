@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { Check, History as HistoryIcon, Trash2 } from "lucide-react";
 import { Button, cx } from "@pare/ui";
 import { api } from "../lib/ipc";
-import { formatBytes, plural } from "../lib/format";
+import { categoryTitle, formatBytes } from "../lib/format";
+import { useT } from "../i18n";
 import type { CleanItemResult, Drive } from "../lib/types";
 import { useApp } from "../state/app";
 import { useClean } from "../state/clean";
@@ -35,6 +36,7 @@ function used(drives: Drive[]): { used: number; total: number } {
 }
 
 export function Done() {
+  const { t, tp } = useT();
   const go = useApp((s) => s.go);
   const settings = useApp((s) => s.settings);
   const result = useClean((s) => s.result);
@@ -59,14 +61,20 @@ export function Done() {
       </span>
       <div>
         <h1 className="tabular text-display-l text-text-primary" aria-live="polite">
-          {report.freedNow > 0 ? `You freed ${formatBytes(freed)}` : recycled > 0 ? "Moved to the Recycle Bin" : "Done"}
+          {report.freedNow > 0
+            ? t("done.freed", { size: formatBytes(freed) })
+            : recycled > 0
+              ? t("done.movedToBin")
+              : t("done.done")}
         </h1>
         <p className="mt-3 text-body-l text-text-secondary">
-          {report.freedNow > 0 && "Rebuildable caches were removed. "}
+          {report.freedNow > 0 && `${t("done.cachesRemoved")} `}
           {recycled > 0
-            ? `${formatBytes(recycled)} of your own files went to the Recycle Bin${days ? ` — Pare empties them after ${days} days unless you restore them` : ""}.`
+            ? days
+              ? t("done.recycledPurge", { size: formatBytes(recycled), days })
+              : t("done.recycled", { size: formatBytes(recycled) })
             : report.freedNow > 0
-              ? "Nothing went to the Recycle Bin."
+              ? t("done.nothingRecycled")
               : ""}
         </p>
       </div>
@@ -78,10 +86,10 @@ export function Done() {
           actions={
             <>
               <Button variant="ghost" onClick={() => void run(failed.map((r) => r.findingId))}>
-                Retry
+                {t("done.retry")}
               </Button>
               <Button variant="ghost" onClick={() => setShowFailed((v) => !v)} aria-expanded={showFailed}>
-                {showFailed ? "Hide items" : "Show items"}
+                {showFailed ? t("done.hideItems") : t("done.showItems")}
               </Button>
             </>
           }
@@ -102,15 +110,15 @@ export function Done() {
 
       <div className="w-full rounded-lg border border-border-default bg-bg-surface px-6 py-4">
         {[
-          ["Before", before.used, "bg-border-strong"],
-          ["After", after.used, "bg-accent-default"],
-        ].map(([label, u, bar]) => (
-          <div key={label as string} className="flex items-center gap-4 py-1.5 text-body-m">
-            <span className="w-14 text-left text-text-secondary">{label}</span>
+          ["before", t("done.before"), before.used, "bg-border-strong"],
+          ["after", t("done.after"), after.used, "bg-accent-default"],
+        ].map(([key, label, u, bar]) => (
+          <div key={key as string} className="flex items-center gap-4 py-1.5 text-body-m">
+            <span className="w-16 text-left text-text-secondary">{label}</span>
             <span className="h-2 flex-1 overflow-hidden rounded-full bg-bg-subtle">
               <span className={cx("block h-full rounded-full", bar as string)} style={{ width: `${before.total ? ((u as number) / before.total) * 100 : 0}%` }} />
             </span>
-            <span className="tabular w-28 text-right text-text-primary">{formatBytes(u as number)} used</span>
+            <span className="tabular w-28 text-right text-text-primary">{t("done.used", { size: formatBytes(u as number) })}</span>
           </div>
         ))}
       </div>
@@ -119,11 +127,11 @@ export function Done() {
         <dl className="w-full text-body-m">
           {report.byCategory.map((c) => (
             <div key={c.category} className="flex justify-between py-1.5">
-              <dt className="text-text-secondary">{c.title}</dt>
+              <dt className="text-text-secondary">{categoryTitle(c.category)}</dt>
               <dd className="tabular text-text-primary">
                 {c.freed > 0 && formatBytes(c.freed)}
                 {c.freed > 0 && c.recycled > 0 && <span className="text-text-secondary"> + </span>}
-                {c.recycled > 0 && `${formatBytes(c.recycled)} in Recycle Bin`}
+                {c.recycled > 0 && t("done.inBin", { size: formatBytes(c.recycled) })}
               </dd>
             </div>
           ))}
@@ -132,7 +140,7 @@ export function Done() {
 
       <div className="flex flex-wrap items-center justify-center gap-3">
         <Button variant="ghost" icon={HistoryIcon} onClick={() => go({ name: "history", op: report.opId })}>
-          View in History
+          {t("done.viewHistory")}
         </Button>
         {recycled > 0 && (
           <Button
@@ -143,14 +151,12 @@ export function Done() {
               setPurged((p) => p + r.bytes);
             }}
           >
-            Empty {formatBytes(recycled)} now
+            {t("common.emptyNow", { size: formatBytes(recycled) })}
           </Button>
         )}
-        <Button onClick={() => go({ name: "clean" })}>Done</Button>
+        <Button onClick={() => go({ name: "clean" })}>{t("done.done")}</Button>
       </div>
-      <p className="text-caption text-text-tertiary">
-        {plural(report.ok, "item")} done · every action is logged on this PC
-      </p>
+      <p className="text-caption text-text-tertiary">{tp("done.footer", report.ok)}</p>
     </div>
   );
 }

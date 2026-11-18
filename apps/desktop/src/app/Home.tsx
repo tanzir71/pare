@@ -14,8 +14,19 @@ import {
 } from "lucide-react";
 import { Button, Chip, SearchField, StorageSummary, SuggestionCard, FileRow, cx, type BadgeTone } from "@pare/ui";
 import { api, isTauri, on } from "../lib/ipc";
-import { ago, formatBytes, formatCount, growthPhrase, plural, protectExplain, tierBadge } from "../lib/format";
+import {
+  ago,
+  andList,
+  categoryDescription,
+  categoryTitle,
+  formatBytes,
+  formatBytesExact,
+  growthPhrase,
+  protectExplain,
+  tierBadge,
+} from "../lib/format";
 import type { CategorySummary, Finding, Growth, ProtectReason } from "../lib/types";
+import { t, tp, useT } from "../i18n";
 import { useApp } from "../state/app";
 import { useClean } from "../state/clean";
 import { useScan, type ScopeKey } from "../state/scan";
@@ -23,36 +34,38 @@ import { categoryHue, findingIcon, iconByName } from "../components/icons";
 import { Sheet } from "../components/Sheet";
 
 export function cardBadge(c: CategorySummary): { tone: BadgeTone; label: string } {
-  if (c.safeBytes > 0 && c.reviewBytes === 0) return { tone: "safe", label: c.id === "project-build" ? "Rebuilds" : "Safe" };
-  if (c.reviewBytes > 0 && c.safeBytes === 0) return { tone: "review", label: "Review" };
-  return c.safeBytes >= c.reviewBytes ? { tone: "safe", label: "Mostly safe" } : { tone: "review", label: "Mostly review" };
+  if (c.safeBytes > 0 && c.reviewBytes === 0)
+    return { tone: "safe", label: c.id === "project-build" ? t("home.badge.rebuilds") : t("tier.safe") };
+  if (c.reviewBytes > 0 && c.safeBytes === 0) return { tone: "review", label: t("tier.review") };
+  return c.safeBytes >= c.reviewBytes
+    ? { tone: "safe", label: t("home.badge.mostlySafe") }
+    : { tone: "review", label: t("home.badge.mostlyReview") };
 }
 
 function cardMeta(c: CategorySummary): string {
   if (c.safeBytes > 0 && c.reviewBytes > 0) {
-    return `${formatBytes(c.safeBytes)} safe · ${formatBytes(c.reviewBytes)} to review`;
+    return t("home.cardMeta", { safe: formatBytes(c.safeBytes), review: formatBytes(c.reviewBytes) });
   }
-  const unit = c.id === "recycle-bin" ? "item" : c.id === "empty-folders" ? "folder" : "file";
-  return plural(c.items, unit);
+  const unit = c.id === "recycle-bin" ? "count.items" : c.id === "empty-folders" ? "count.folders" : "count.files";
+  return tp(unit, c.items);
 }
 
 function keptPhrase(protectedCounts: { reason: ProtectReason; count: number }[]): string {
   const n = (rs: ProtectReason[]) => protectedCounts.filter((p) => rs.includes(p.reason)).reduce((a, p) => a + p.count, 0);
-  const parts: string[] = [];
-  const unc = n(["uncommitted"]);
-  if (unc) parts.push(`${plural(unc, "project")} with uncommitted changes`);
-  const inUse = n(["in-use", "tool-running"]);
-  if (inUse) parts.push(`${plural(inUse, "item")} open in an app`);
-  const recent = n(["recently-modified", "changed-since-scan"]);
-  if (recent) parts.push(`${plural(recent, "item")} changed in the last 24 hours`);
-  const excl = n(["excluded"]);
-  if (excl) parts.push(`${plural(excl, "item")} you chose to keep`);
-  const other = n(["cloud-only", "system-path", "never-touch"]);
-  if (other) parts.push(`${plural(other, "protected item")}`);
-  if (parts.length === 0) return "Nothing needed protecting in this scan.";
-  const list = parts.length === 1 ? parts[0]! : `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)!}`;
-  const verb = parts.length === 1 && list.startsWith("1 ") ? "was" : "were";
-  return `${list.charAt(0).toUpperCase()}${list.slice(1)} ${verb} left out.`;
+  const parts: { text: string; count: number }[] = [];
+  const add = (key: "home.kept.uncommitted" | "home.kept.inUse" | "home.kept.recent" | "home.kept.excluded" | "home.kept.protected", count: number) => {
+    if (count) parts.push({ text: tp(key, count), count });
+  };
+  add("home.kept.uncommitted", n(["uncommitted"]));
+  add("home.kept.inUse", n(["in-use", "tool-running"]));
+  add("home.kept.recent", n(["recently-modified", "changed-since-scan"]));
+  add("home.kept.excluded", n(["excluded"]));
+  add("home.kept.protected", n(["cloud-only", "system-path", "never-touch"]));
+  if (parts.length === 0) return t("home.kept.none");
+  const list = andList(parts.map((p) => p.text));
+  const single = parts.length === 1 && parts[0]!.count === 1;
+  const sentence = t(single ? "home.leftOut.single" : "home.leftOut.multiple", { list });
+  return `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}`;
 }
 
 async function safeIds(categories: CategorySummary[]): Promise<string[]> {
@@ -67,6 +80,7 @@ async function safeIds(categories: CategorySummary[]): Promise<string[]> {
 }
 
 export function Home() {
+  const { t, tp } = useT();
   const go = useApp((s) => s.go);
   const drives = useApp((s) => s.drives);
   const settings = useApp((s) => s.settings);
@@ -115,20 +129,23 @@ export function Home() {
   const otherUsed = Math.max(0, total - free - safe - review);
   const driveNames = scanned.map((d) => d.letter);
   const overline = summary
-    ? `Scan complete · ${ago(summary.finished)} · ${driveNames.length > 1 ? `Drives ${driveNames.slice(0, -1).join(", ")} and ${driveNames.at(-1)}` : `Drive ${driveNames[0] ?? ""}`}`
+    ? t("home.overline", {
+        ago: ago(summary.finished),
+        drives: driveNames.length > 1 ? t("home.drives", { list: andList(driveNames) }) : t("home.drive", { letter: driveNames[0] ?? "" }),
+      })
     : "";
 
   const chips: { key: ScopeKey; label: string; icon: typeof HardDrive }[] = [
-    { key: "pc", label: "This PC", icon: HardDrive },
-    { key: "desktop", label: "Desktop", icon: Monitor },
-    { key: "downloads", label: "Downloads", icon: Download },
-    { key: "documents", label: "Documents", icon: FileText },
+    { key: "pc", label: t("home.scope.pc"), icon: HardDrive },
+    { key: "desktop", label: t("home.scope.desktop"), icon: Monitor },
+    { key: "downloads", label: t("home.scope.downloads"), icon: Download },
+    { key: "documents", label: t("home.scope.documents"), icon: FileText },
     ...(settings?.customRoots ?? []).map((r) => ({ key: `path:${r.path}` as ScopeKey, label: r.label, icon: Folder })),
   ];
 
   async function addFolder() {
     if (!isTauri) return;
-    const picked = await openDialog({ directory: true, multiple: false, title: "Add a folder to scan" });
+    const picked = await openDialog({ directory: true, multiple: false, title: t("common.dialog.addScanFolder") });
     if (typeof picked !== "string") return;
     const roots = settings?.customRoots ?? [];
     if (!roots.some((r) => r.path === picked)) {
@@ -162,8 +179,8 @@ export function Home() {
   }
 
   const scopeRow = (
-    <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Scope">
-      <span className="mr-1 text-body-m text-text-secondary">Scope</span>
+    <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("home.scope")}>
+      <span className="mr-1 text-body-m text-text-secondary">{t("home.scope")}</span>
       {chips.map((c) => (
         <Chip key={c.key} icon={c.icon} selected={scan.scope.includes(c.key)} onClick={() => scan.toggleScope(c.key)}>
           {c.label}
@@ -171,14 +188,14 @@ export function Home() {
       ))}
       {isTauri && (
         <Chip icon={FolderPlus} onClick={() => void addFolder()}>
-          Add folder
+          {t("common.addFolder")}
         </Chip>
       )}
     </div>
   );
 
   const scopeIsPc = scan.scope.includes("pc");
-  const scanLabel = scopeIsPc ? "Scan this PC" : `Scan ${plural(scan.scope.length, "folder")}`;
+  const scanLabel = scopeIsPc ? t("common.scanThisPc") : tp("home.scanFolders", scan.scope.length);
 
   // First run: nothing scanned yet.
   if (!summary && !scan.running) {
@@ -188,10 +205,8 @@ export function Home() {
           <ScanSearch size={30} aria-hidden="true" />
         </span>
         <div>
-          <h1 className="text-heading-h1">Pick what to scan</h1>
-          <p className="mt-2 text-body-l text-text-secondary">
-            Pare only reads while it scans. Nothing is removed until you choose what to free up.
-          </p>
+          <h1 className="text-heading-h1">{t("home.firstRun.title")}</h1>
+          <p className="mt-2 text-body-l text-text-secondary">{t("home.firstRun.body")}</p>
         </div>
         <div className="flex justify-center">{scopeRow}</div>
         <Button size="l" icon={ScanSearch} onClick={() => void scan.start()}>
@@ -205,16 +220,16 @@ export function Home() {
   return (
     <div className="flex flex-col gap-6 pb-10 pl-4 pr-8 pt-6">
       <header className="flex flex-wrap items-center gap-3">
-        <h1 className="mr-auto text-heading-h1">Clean</h1>
+        <h1 className="mr-auto text-heading-h1">{t("home.title")}</h1>
         <SearchField
           className="w-[300px]"
-          placeholder="Search files and folders"
-          aria-label="Search suggestions"
+          placeholder={t("home.searchPlaceholder")}
+          aria-label={t("home.searchLabel")}
           value={query}
           onChange={(e) => void search(e.currentTarget.value)}
         />
         <Button variant="secondary" icon={RefreshCw} onClick={() => void scan.start()} disabled={scan.running}>
-          Scan again
+          {t("home.scanAgain")}
         </Button>
       </header>
 
@@ -225,7 +240,7 @@ export function Home() {
           className="flex items-center gap-2 self-start rounded-full bg-accent-subtle px-3 py-1 text-label-s text-accent-on-subtle"
         >
           <RefreshCw size={14} className="pare-spin" aria-hidden="true" />
-          Scanning… {Math.round((scan.progress?.fraction ?? 0) * 100)}% · results appear as they're ready
+          {t("home.scanningPill", { pct: Math.round((scan.progress?.fraction ?? 0) * 100) })}
         </button>
       )}
 
@@ -236,22 +251,33 @@ export function Home() {
             <span className="text-body-m-strong">{growthPhrase(a, home)}.</span> {a.label}.
           </p>
           <Button variant="secondary" onClick={() => go({ name: "review", category: a.category })}>
-            Review
+            {t("common.review")}
           </Button>
           <Button variant="ghost" onClick={() => setDismissed((d) => [...d, a.ruleId])}>
-            Dismiss
+            {t("home.dismiss")}
           </Button>
         </div>
       ))}
 
       {summary && (safe + review > 0 || scan.running) && (
         <StorageSummary
-          overline={scan.running ? "Scanning…" : overline}
+          overline={scan.running ? t("home.scanning") : overline}
           safeBytes={safe}
           reviewBytes={review}
           otherUsedBytes={otherUsed}
           freeBytes={free}
-          primaryLabel={safe > 0 ? `Free up ${formatBytes(safe)}` : "Nothing safe to free"}
+          primaryLabel={safe > 0 ? t("common.freeUp", { size: formatBytes(safe) }) : t("home.nothingSafe")}
+          caption={t("home.summaryCaption")}
+          secondaryLabel={t("home.reviewAll")}
+          reclaimLabel={t("home.canBeFreed")}
+          segmentLabels={{
+            safe: t("home.segment.safe"),
+            review: t("home.segment.review"),
+            other: t("home.segment.otherUsed"),
+            free: t("home.segment.free"),
+          }}
+          formatSize={formatBytes}
+          formatSizeExact={formatBytesExact}
           onFreeUp={
             safe > 0 && !clean.running
               ? () => (clean.confirmedThisSession ? void freeUp() : setConfirmOpen(true))
@@ -264,9 +290,9 @@ export function Home() {
       {scopeRow}
 
       {results ? (
-        <section aria-label="Search results" className="overflow-hidden rounded-lg border border-border-default">
+        <section aria-label={t("home.searchResults")} className="overflow-hidden rounded-lg border border-border-default">
           {results.length === 0 ? (
-            <p className="bg-bg-surface px-4 py-6 text-body-m text-text-secondary">No suggestions match “{query}”.</p>
+            <p className="bg-bg-surface px-4 py-6 text-body-m text-text-secondary">{t("home.noMatches", { query })}</p>
           ) : (
             results.slice(0, 200).map((f) => {
               const b = tierBadge(f.tier, f.badge, f.disposal);
@@ -280,6 +306,9 @@ export function Home() {
                   badge={{ tone: b.tone, label: b.label }}
                   age={f.note ?? undefined}
                   size={f.bytes}
+                  selectLabel={t("common.selectItem", { name: f.title })}
+                  formatSize={formatBytes}
+                  formatSizeExact={formatBytesExact}
                   disabled
                   onClick={() => go({ name: "review", category: f.category })}
                   className="cursor-pointer"
@@ -291,17 +320,17 @@ export function Home() {
       ) : categories.length === 0 && !scan.running ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-border-default bg-bg-surface px-8 py-14 text-center">
           <ShieldCheck size={28} className="text-safe-fg" aria-hidden="true" />
-          <p className="text-heading-h3">Nothing worth cleaning here.</p>
-          <p className="text-body-m text-text-secondary">Your PC is in good shape. Try a different scope, or scan again later.</p>
+          <p className="text-heading-h3">{t("home.empty.title")}</p>
+          <p className="text-body-m text-text-secondary">{t("home.empty.body")}</p>
         </div>
       ) : (
         <section aria-labelledby="suggestions-title" className="flex flex-col gap-4">
           <div className="flex items-baseline gap-3">
             <h2 id="suggestions-title" className="text-heading-h3">
-              Suggestions
+              {t("home.suggestions")}
             </h2>
             <span className="text-caption text-text-tertiary">
-              {plural(categories.length, "category", "categories")} · sorted by space you get back
+              {t("home.suggestionsMeta", { categories: tp("count.categories", categories.length) })}
             </span>
           </div>
           <div className="grid grid-cols-2 gap-4 min-[1100px]:grid-cols-3">
@@ -312,11 +341,14 @@ export function Home() {
                 style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
                 icon={iconByName(c.icon)}
                 hue={categoryHue(c.id)}
-                title={c.title}
-                description={c.description}
+                title={categoryTitle(c.id)}
+                description={categoryDescription(c.id)}
                 size={c.safeBytes + c.reviewBytes}
+                formatSize={formatBytes}
+                formatSizeExact={formatBytesExact}
                 meta={cardMeta(c)}
                 badge={cardBadge(c)}
+                ctaLabel={t("common.review")}
                 onCtaClick={() => go({ name: "review", category: c.id })}
               />
             ))}
@@ -330,7 +362,7 @@ export function Home() {
             <ShieldCheck size={18} aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-body-m-strong text-text-primary">Kept safe automatically</p>
+            <p className="text-body-m-strong text-text-primary">{t("home.keptTitle")}</p>
             <p className="text-body-s text-text-secondary">{keptPhrase(summary.protected)}</p>
           </div>
           {summary.protected.length > 0 && (
@@ -341,7 +373,7 @@ export function Home() {
                 setKeptOpen(true);
               }}
             >
-              See what was kept
+              {t("home.seeKept")}
             </Button>
           )}
         </div>
@@ -350,14 +382,14 @@ export function Home() {
       <Sheet
         open={confirmOpen}
         onClose={() => setConfirmOpen(false)}
-        title={`Free up ${formatBytes(safe)}?`}
-        description="Only Safe items are included. Caches that rebuild are removed now; your own files go to the Recycle Bin."
+        title={t("common.freeUpQuestion", { size: formatBytes(safe) })}
+        description={t("home.confirm.description")}
         footer={
           <>
             <Button variant="secondary" onClick={() => setConfirmOpen(false)}>
-              Cancel
+              {t("common.cancel")}
             </Button>
-            <Button onClick={() => void freeUp()}>Free up {formatBytes(safe)}</Button>
+            <Button onClick={() => void freeUp()}>{t("common.freeUp", { size: formatBytes(safe) })}</Button>
           </>
         }
       >
@@ -366,7 +398,7 @@ export function Home() {
             .filter((c) => c.safeBytes > 0)
             .map((c) => (
               <li key={c.id} className="flex items-center justify-between py-2.5 text-body-m">
-                <span>{c.title}</span>
+                <span>{categoryTitle(c.id)}</span>
                 <span className="tabular text-text-secondary">{formatBytes(c.safeBytes)}</span>
               </li>
             ))}
@@ -377,8 +409,8 @@ export function Home() {
         open={keptOpen}
         onClose={() => setKeptOpen(false)}
         placement="side"
-        title="What Pare kept"
-        description="These were found but left out. They can't be selected until the reason goes away."
+        title={t("home.keptSheet.title")}
+        description={t("home.keptSheet.description")}
       >
         <ul className="flex flex-col gap-2">
           {kept.map((f) => (
@@ -390,9 +422,9 @@ export function Home() {
               </p>
             </li>
           ))}
-          {kept.length === 0 && <li className="text-body-s text-text-secondary">Loading…</li>}
+          {kept.length === 0 && <li className="text-body-s text-text-secondary">{t("common.loading")}</li>}
         </ul>
-        <p className="mt-4 text-caption text-text-tertiary">{formatCount(kept.length)} items</p>
+        <p className="mt-4 text-caption text-text-tertiary">{tp("count.items", kept.length)}</p>
       </Sheet>
     </div>
   );

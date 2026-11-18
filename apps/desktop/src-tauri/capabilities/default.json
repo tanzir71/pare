@@ -41,6 +41,7 @@
     "allow-monitor-alerts",
     "allow-schedulable-rules",
     "allow-guide-run",
+    "allow-locale-set",
     "updater:default",
     "process:allow-restart"
   ]

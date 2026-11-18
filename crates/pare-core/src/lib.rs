@@ -8,6 +8,7 @@ pub mod dispose;
 pub mod env;
 pub mod format;
 pub mod history;
+pub mod i18n;
 pub mod index;
 pub mod monitor;
 pub mod platform;
