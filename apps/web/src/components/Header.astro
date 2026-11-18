@@ -1,0 +1,127 @@
+---
+import { Button, Lockup } from "@pare/ui";
+import { Menu, X } from "lucide-react";
+import { download, links, withBase } from "../site";
+
+interface Props {
+  /** On sub-pages, section anchors point back to the home page. */
+  home?: boolean;
+}
+const { home = true } = Astro.props;
+const anchor = (id: string) => (home ? `#${id}` : `${withBase("/")}#${id}`);
+
+const nav = [
+  { label: "Features", href: anchor("features") },
+  { label: "How it works", href: anchor("how-it-works") },
+  { label: "Safety", href: anchor("safety") },
+  { label: "FAQ", href: anchor("faq") },
+  { label: "GitHub", href: links.repo },
+];
+const linkClass =
+  "focus-ring rounded-sm text-label-m text-text-secondary no-underline transition-[color,background-color,border-color] duration-[var(--pare-motion-base)] ease-pare hover:text-text-primary";
+---
+
+<header class="relative z-20 bg-bg-surface">
+  <div class="page flex h-18 items-center gap-6 md:h-24 xl:h-[140px] xl:gap-8">
+    <a href={withBase("/")} class="focus-ring -m-1 rounded-md p-1" aria-label="Pare home">
+      <Lockup markSize={32} />
+    </a>
+    <div class="flex-1"></div>
+    <nav aria-label="Primary" class="hidden md:block">
+      <ul class="m-0 flex list-none items-center gap-6 p-0 text-label-m xl:gap-8">
+        {
+          nav.map((item) => (
+            <li>
+              <a href={item.href} class={linkClass}>
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </nav>
+    <Button href={download.href} icon={download.icon} className="max-md:hidden">
+      {download.shortLabel}
+    </Button>
+    <button
+      id="menu-toggle"
+      type="button"
+      class="focus-ring -mr-2 inline-flex size-10 items-center justify-center rounded-md text-text-primary hover:bg-bg-subtle md:hidden"
+      aria-expanded="false"
+      aria-controls="mobile-menu"
+      aria-label="Open menu"
+    >
+      <span data-icon="open" class="inline-flex"><Menu aria-hidden="true" size={22} /></span>
+      <span data-icon="close" class="inline-flex" hidden><X aria-hidden="true" size={22} /></span>
+    </button>
+  </div>
+
+  <div
+    id="mobile-menu"
+    hidden
+    class="absolute inset-x-0 top-full border-b border-border-default bg-bg-surface shadow-floating md:hidden"
+  >
+    <nav aria-label="Primary (mobile)" class="page pb-6 pt-2">
+      <ul class="m-0 flex list-none flex-col p-0">
+        {
+          nav.map((item) => (
+            <li>
+              <a
+                href={item.href}
+                class="focus-ring flex h-12 items-center rounded-md px-2 text-body-l text-text-primary no-underline hover:bg-bg-subtle"
+              >
+                {item.label}
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+      <Button href={download.href} icon={download.icon} size="l" fullWidth className="mt-4">
+        {download.label}
+      </Button>
+    </nav>
+  </div>
+  <noscript>
+    <style>
+      /* Without JS the toggle can't work, so show the links inline on small screens. */
+      @media (width < 48rem) {
+        #mobile-menu[hidden] {
+          display: block !important;
+          position: static;
+          box-shadow: none;
+        }
+        #menu-toggle {
+          display: none;
+        }
+      }
+    </style>
+  </noscript>
+</header>
+
+<script is:inline>
+  (() => {
+    const button = document.getElementById("menu-toggle");
+    const menu = document.getElementById("mobile-menu");
+    if (!button || !menu) return;
+    const set = (open) => {
+      button.setAttribute("aria-expanded", String(open));
+      button.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+      button.querySelector('[data-icon="open"]').hidden = open;
+      button.querySelector('[data-icon="close"]').hidden = !open;
+      menu.hidden = !open;
+    };
+    button.addEventListener("click", () => set(button.getAttribute("aria-expanded") !== "true"));
+    menu.addEventListener("click", (event) => {
+      if (event.target instanceof Element && event.target.closest("a")) set(false);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && button.getAttribute("aria-expanded") === "true") {
+        set(false);
+        button.focus();
+      }
+    });
+    matchMedia("(min-width: 768px)").addEventListener("change", (event) => {
+      if (event.matches) set(false);
+    });
+  })();
+</script>
