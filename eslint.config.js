@@ -22,7 +22,11 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.node } },
   },
   {
-    files: ["apps/desktop/src/**/*.{ts,tsx}"],
+    files: [
+      "apps/desktop/src/**/*.{ts,tsx}",
+      "packages/ui/src/**/*.{ts,tsx}",
+      "apps/web/src/**/*.{ts,tsx}",
+    ],
     languageOptions: { globals: { ...globals.browser } },
     plugins: { "react-hooks": reactHooks },
     rules: {
@@ -32,13 +36,24 @@ export default tseslint.config(
   },
   {
     // Token-only styling: no raw hex colours in UI components.
-    files: ["apps/desktop/src/**/*.tsx", "apps/web/src/**/*.{ts,tsx}"],
+    files: [
+      "apps/desktop/src/**/*.tsx",
+      "apps/web/src/**/*.{ts,tsx}",
+      "packages/ui/src/**/*.{ts,tsx}",
+    ],
     rules: {
       "no-restricted-syntax": [
         "error",
         {
-          selector: "Literal[value=/#[0-9a-fA-F]{3,8}\b/]",
-          message: "Use token CSS variables (var(--pare-…)) or Tailwind token classes, not raw hex.",
+          // Escape the backslash: in a JS string "\b" is a backspace, so the old selector never matched.
+          selector: "Literal[value=/#[0-9a-fA-F]{3,8}\\b/]",
+          message:
+            "Use token CSS variables (var(--pare-…)) or Tailwind token classes, not raw hex.",
+        },
+        {
+          selector: "TemplateElement[value.raw=/#[0-9a-fA-F]{3,8}\\b/]",
+          message:
+            "Use token CSS variables (var(--pare-…)) or Tailwind token classes, not raw hex.",
         },
       ],
     },
