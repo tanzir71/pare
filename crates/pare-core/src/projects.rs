@@ -537,7 +537,12 @@ pub fn stale_worktrees(root: &Path, now: Timestamp) -> Vec<Candidate> {
         {
             continue;
         }
-        let path = wt.path().to_path_buf();
+        // libgit2 reports worktree paths with forward slashes; use the OS separator.
+        let path = if cfg!(windows) {
+            PathBuf::from(wt.path().to_string_lossy().replace('/', "\\"))
+        } else {
+            wt.path().to_path_buf()
+        };
         let Ok(wrepo) = git2::Repository::open_from_worktree(&wt) else {
             continue;
         };

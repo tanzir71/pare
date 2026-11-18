@@ -374,7 +374,10 @@ fn stale_worktrees_are_suggested() {
     let now = pare_core::platform::now_ms();
     let c = pare_core::projects::stale_worktrees(&main, now);
     assert_eq!(c.len(), 1, "{c:#?}");
-    assert_eq!(c[0].extra_paths, vec![merged.clone()]);
+    // Compare canonical paths: CI temp dirs mix 8.3 and long names.
+    let canon = |p: &std::path::Path| std::fs::canonicalize(p).unwrap();
+    assert_eq!(c[0].extra_paths.len(), 1);
+    assert_eq!(canon(&c[0].extra_paths[0]), canon(&merged));
     match &c[0].disposal {
         Disposal::Command { program, args } => {
             assert_eq!(program, "git");
