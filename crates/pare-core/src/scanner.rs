@@ -49,6 +49,8 @@ pub struct ScanConfig {
     pub rules: Option<std::sync::Arc<crate::rules::RuleSet>>,
     /// Where to look for projects (M4). Empty = no project scan.
     pub project_roots: Vec<PathBuf>,
+    /// Look for duplicate files (M5); reads file contents of same-size candidates.
+    pub duplicates: bool,
 }
 
 impl Default for ScanConfig {
@@ -61,6 +63,7 @@ impl Default for ScanConfig {
             now: None,
             rules: None,
             project_roots: Vec::new(),
+            duplicates: true,
         }
     }
 }
@@ -96,6 +99,9 @@ pub struct ScanStats {
     pub dirs: u64,
     pub bytes_seen: u64,
     pub elapsed_ms: u64,
+    /// Time per phase and detector, in milliseconds.
+    #[serde(default)]
+    pub phases: Vec<(String, u64)>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -151,12 +157,36 @@ pub fn scan(
 
     let paths: Vec<PathBuf> = req.roots.iter().map(|r| r.path.clone()).collect();
     let roots = dedupe_roots(&paths);
+    let phase_start = std::time::Instant::now();
+    let mut phases: Vec<(String, u64)> = Vec::new();
+    // Whole drives: keep every folder but only the files detectors need, so memory stays
+    // proportional to folders rather than files.
+    let keep = if req.whole_drives {
+        let dup = cfg.thresholds.duplicate_min_mb.saturating_mul(1_000_000).max(1);
+        crate::scan::walker::Keep {
+            all: false,
+            under: vec![
+                (env.downloads.clone(), 0),
+                (env.pictures.join("Screenshots"), 0),
+                (env.desktop.clone(), dup),
+                (env.documents.clone(), dup),
+                (env.pictures.clone(), dup),
+                (env.home.join("Videos"), dup),
+                (env.home.join("Music"), dup),
+            ],
+            min_bytes: cfg.thresholds.large_file_mb.saturating_mul(1_000_000),
+        }
+    } else {
+        crate::scan::walker::Keep::default()
+    };
     let tree = Walker {
         env,
         cancel,
         progress,
+        keep,
     }
     .walk(&roots);
+    phases.push(("enumerate".into(), phase_start.elapsed().as_millis() as u64));
 
     let mut result = ScanResult {
         started,
@@ -286,7 +316,7 @@ pub fn scan(
             "Downloads",
             Box::new(|c: &DetectCtx| {
                 let (v, cl) = quick::downloads(c);
-                *claimed.lock().unwrap() = cl;
+                claimed.lock().unwrap().extend(cl);
                 v
             }),
         ),
@@ -300,7 +330,21 @@ pub fn scan(
             "Empty folders",
             Box::new(quick::empty_folders),
         ),
+        (
+            "screenshots",
+            "Old screenshots",
+            Box::new(crate::detectors::duplicates::screenshots),
+        ),
     ]);
+    let claimed_ref = &claimed;
+    if cfg.duplicates {
+        let threads = roots.first().map(|r| crate::detectors::duplicates::hash_threads(r)).unwrap_or(2);
+        detectors.push((
+            "duplicates",
+            "Duplicates",
+            Box::new(move |c: &DetectCtx| crate::detectors::duplicates::duplicates(c, threads, &claimed_ref.lock().unwrap())),
+        ));
+    }
     if cfg.include_recycle_bin && !env.is_fake {
         let drives = req.drives.clone();
         detectors.push((
@@ -333,7 +377,15 @@ pub fn scan(
             state: DetectorState::Running,
             bytes: 0,
         }));
+        let t0 = std::time::Instant::now();
         let candidates = run(&ctx);
+        // An item belongs to one finding: later detectors skip nodes earlier ones claimed.
+        if let Ok(mut cl) = claimed.lock() {
+            for c in &candidates {
+                cl.extend(c.nodes.iter().copied());
+            }
+        }
+        let t_detect = t0.elapsed().as_millis() as u64;
         let measured: Vec<_> = candidates
             .into_par_iter()
             .map(|c| measure(c, &tree))
@@ -359,6 +411,8 @@ pub fn scan(
                 safety::apply_in_use(f, holders);
             }
         }
+        phases.push((format!("{id}: detect"), t_detect));
+        phases.push((format!("{id}: measure+safety"), t0.elapsed().as_millis() as u64 - t_detect));
         let mut found = 0u64;
         let mut touched: Vec<CategoryId> = Vec::new();
         for (f, _) in assessed {
@@ -413,6 +467,7 @@ pub fn scan(
         dirs: snap.dirs,
         bytes_seen: snap.bytes_seen,
         elapsed_ms: snap.elapsed_ms,
+        phases,
     };
     result.finished = now_ms();
     progress.set_phase(if result.cancelled {

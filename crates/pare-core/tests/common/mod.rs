@@ -57,6 +57,7 @@ impl FakeHome {
             now: None,
             rules: None,
             project_roots: Vec::new(),
+            duplicates: true,
         }
     }
 

@@ -147,6 +147,7 @@
   --pare-text-primary: #F2F4F7;
   --pare-text-secondary: #A9B3C3;
   --pare-text-tertiary: #6B778A;
+  --pare-text-on-accent: #0B1220;
   --pare-accent-default: #6F86E8;
   --pare-accent-hover: #8A9DEE;
   --pare-accent-subtle: #18224A;
@@ -192,6 +193,7 @@
     --pare-text-primary: #F2F4F7;
     --pare-text-secondary: #A9B3C3;
     --pare-text-tertiary: #6B778A;
+    --pare-text-on-accent: #0B1220;
     --pare-accent-default: #6F86E8;
     --pare-accent-hover: #8A9DEE;
     --pare-accent-subtle: #18224A;

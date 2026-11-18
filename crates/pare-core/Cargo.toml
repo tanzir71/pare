@@ -11,6 +11,7 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+blake3 = "1.8.7"
 # No https/ssh: Pare never talks to a remote, it only reads local repositories.
 git2 = { version = "0.21.0", default-features = false, features = ["vendored-libgit2"] }
 globset = "0.4.21"

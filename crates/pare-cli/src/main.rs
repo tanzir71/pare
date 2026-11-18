@@ -126,6 +126,7 @@ pub(crate) fn run_scan(env: &Env, paths: &[PathBuf], in_use: bool) -> ScanOutput
             .into_iter()
             .chain(settings.project_roots.iter().cloned())
             .collect(),
+        duplicates: true,
     };
     scan(
         &req,
@@ -183,6 +184,9 @@ fn main() {
                 format_count(r.stats.files),
                 r.stats.elapsed_ms as f64 / 1000.0
             );
+            for (name, ms) in &r.stats.phases {
+                eprintln!("  {name:<32} {ms:>8} ms");
+            }
             for c in &r.categories {
                 println!(
                     "{} — {} ({} safe · {} to review)",

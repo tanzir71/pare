@@ -15,6 +15,14 @@ unsafe_op_in_unsafe_fn = "deny"
 [workspace.lints.clippy]
 dbg_macro = "deny"
 
+# Keep build output small: dependencies without debug info, no incremental cache.
+[profile.dev]
+debug = "line-tables-only"
+incremental = false
+
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
 codegen-units = 1
 lto = true

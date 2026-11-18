@@ -160,6 +160,7 @@ Success mark (72 px solid `safe/fg` circle, white check, soft green shadow), "Yo
 - Every icon-only control gets an `aria-label`; badges are announced ("Safe: rebuilds automatically").
 - Keyboard: Tab order is sidebar → header → content → bulk bar. Lists use the roving tabindex pattern. Esc closes the details panel and sheets.
 - Never rely on color alone: each tier has a text label.
+- **Dark-mode fix (M5 QA):** `text/on-accent` is `#0B1220` in dark mode. White on the dark accent `#6F86E8` is only 3.4:1; the dark ink is 5.6:1. Known gap: `text/tertiary` on white is 3.06:1, so it is used only for meta, placeholders and decorative paths; the landing page uses `text/secondary` for small body text.
 
 ## 6. Landing page (`16-2`, 1440 desktop)
 

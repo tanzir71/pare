@@ -93,8 +93,7 @@ export function buildThemeCss() {
   lines.push(`  --ease-pare: var(--pare-motion-ease);`);
   return (
     header +
-    `/* Import after "tailwindcss" and tokens.css. */\n@theme inline {\n${lines.join("\n")}\n}\n\n` +
-    `@utility overline {\n  text-transform: uppercase;\n}\n`
+    `/* Import after "tailwindcss" and tokens.css. Eyebrows: text-overline uppercase. */\n@theme inline {\n${lines.join("\n")}\n}\n`
   );
 }
 

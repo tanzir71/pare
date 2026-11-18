@@ -157,6 +157,7 @@ fn config_from(settings: &Settings, rules: Arc<pare_core::rules::RuleSet>) -> Sc
         now: None,
         rules: Some(rules),
         project_roots: Vec::new(),
+        duplicates: true,
     }
 }
 
