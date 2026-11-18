@@ -208,7 +208,11 @@ mod tests {
     #[test]
     fn decodes_against_the_file_system() {
         let d = tempfile::tempdir().unwrap();
-        let real = d.path().join("my-app.v2").join("src");
+        // Use the long path (CI temp dirs can contain 8.3 names like RUNNER~1, which never
+        // appear in directory listings; Claude Code records the long form).
+        let long = std::fs::canonicalize(d.path()).unwrap();
+        let long = PathBuf::from(long.to_string_lossy().trim_start_matches(r"\\?\"));
+        let real = long.join("my-app.v2").join("src");
         std::fs::create_dir_all(&real).unwrap();
         let enc = encode(&real.to_string_lossy());
         match decode(&enc) {
@@ -217,7 +221,7 @@ mod tests {
             ),
             other => panic!("{other:?}"),
         }
-        let gone = encode(&d.path().join("deleted-project").to_string_lossy());
+        let gone = encode(&long.join("deleted-project").to_string_lossy());
         assert_eq!(decode(&gone), Decoded::Missing);
         assert_eq!(decode("not-a-drive-path"), Decoded::Unknown);
     }

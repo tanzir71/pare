@@ -8,6 +8,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use common::*;
+#[cfg(windows)]
+use pare_core::ProtectReason;
 use pare_core::detectors::claude::encode;
 use pare_core::dispose::executor::FailReason;
 use pare_core::dispose::oplog::ItemStatus;
@@ -17,7 +19,7 @@ use pare_core::rules::matcher::PathSet;
 use pare_core::rules::{DisposalDecl, RuleSet, vars};
 use pare_core::safety::protected_paths::classify;
 use pare_core::scan::measure::Candidate;
-use pare_core::{Disposal, ProtectReason, Tier};
+use pare_core::{Disposal, Tier};
 
 #[test]
 #[ignore]
