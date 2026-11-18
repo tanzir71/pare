@@ -39,7 +39,45 @@ pub struct Settings {
     pub check_for_updates: bool,
     /// First-run onboarding seen (M7).
     pub onboarding_done: bool,
+    /// UI language (BCP 47 tag, e.g. `en`, `es`). Empty = follow Windows.
     pub language: String,
+    /// Growth monitor and notification area (M8).
+    pub monitor: MonitorSettings,
+    /// Opt-in scheduled cleanups, one per Safe rule (M8).
+    pub schedules: Vec<RuleSchedule>,
+}
+
+/// M8 monitor. Everything here runs only while Pare is open (its window or its notification
+/// area icon): Pare installs no service and no scheduled task.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MonitorSettings {
+    /// Check rule folders for growth every `check_hours` and alert on big jumps.
+    pub enabled: bool,
+    /// Keep running in the notification area when the window closes.
+    pub tray: bool,
+    /// Alert when something grows by at least this many GB in a week.
+    pub alert_gb: u32,
+    pub check_hours: u32,
+}
+
+impl Default for MonitorSettings {
+    fn default() -> Self {
+        MonitorSettings {
+            enabled: false,
+            tray: false,
+            alert_gb: 5,
+            check_hours: 6,
+        }
+    }
+}
+
+/// "Clean this automatically": one Safe rule, every `every_days` days.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RuleSchedule {
+    pub rule: String,
+    pub every_days: u32,
 }
 
 impl Default for Settings {
@@ -55,7 +93,9 @@ impl Default for Settings {
             hidden_cards: Vec::new(),
             check_for_updates: false,
             onboarding_done: false,
-            language: "en".into(),
+            language: String::new(),
+            monitor: MonitorSettings::default(),
+            schedules: Vec::new(),
         }
     }
 }
@@ -110,5 +150,13 @@ mod tests {
         assert_eq!(back.theme, Theme::Dark);
         assert_eq!(back.exclusions, vec![PathBuf::from("C:\\keep")]);
         assert!(!back.check_for_updates, "updates are opt-in");
+        assert!(
+            !back.monitor.enabled && !back.monitor.tray,
+            "monitor is opt-in"
+        );
+        assert!(
+            back.schedules.is_empty(),
+            "no scheduled cleanups by default"
+        );
     }
 }

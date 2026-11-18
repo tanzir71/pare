@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-monitor-alerts"
+description = "Enables the monitor_alerts command without any pre-configured scope."
+commands.allow = ["monitor_alerts"]
+
+[[permission]]
+identifier = "deny-monitor-alerts"
+description = "Denies the monitor_alerts command without any pre-configured scope."
+commands.deny = ["monitor_alerts"]

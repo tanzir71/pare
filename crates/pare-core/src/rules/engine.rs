@@ -34,6 +34,17 @@ pub struct RuleCtx<'a> {
 
 /// Run every rule whose category is `category`.
 pub fn run_category(set: &RuleSet, ctx: &RuleCtx, category: CategoryId) -> Vec<Candidate> {
+    run_rules(set, ctx, |tool, rule| {
+        category_for(&tool.tool, rule) == category
+    })
+}
+
+/// Run every rule `pick` accepts.
+pub fn run_rules(
+    set: &RuleSet,
+    ctx: &RuleCtx,
+    pick: impl Fn(&LoadedTool, &RuleDef) -> bool,
+) -> Vec<Candidate> {
     let protect = PathSet::new(
         set.protect
             .iter()
@@ -42,10 +53,9 @@ pub fn run_category(set: &RuleSet, ctx: &RuleCtx, category: CategoryId) -> Vec<C
     );
     let mut out = Vec::new();
     for (tool, rule) in set.all_rules() {
-        if category_for(&tool.tool, rule) != category {
-            continue;
+        if pick(tool, rule) {
+            out.extend(run_rule(tool, rule, ctx, &protect));
         }
-        out.extend(run_rule(tool, rule, ctx, &protect));
     }
     out
 }
@@ -118,6 +128,14 @@ pub fn run_rule(
         DisposalDecl::Guide => matches
             .iter()
             .filter_map(|m| {
+                if rule.unmeasured {
+                    // Only the tool knows what it can free (DISM): no size, and no paths, so
+                    // nothing here can ever be selected or removed.
+                    let mut cand = base.candidate(&rule.title, Collected::default());
+                    cand.source_path = Some(m.path().to_path_buf());
+                    cand.note = Some("Size known after analysis".into());
+                    return Some(cand);
+                }
                 let pm = crate::scan::measure::measure_path(m.path());
                 if pm.files == 0 {
                     return None;
@@ -352,6 +370,17 @@ impl<'a> Base<'a> {
             }
             DisposalDecl::Guide => Disposal::Guide {
                 steps: self.rule.guide.clone(),
+                actions: self
+                    .rule
+                    .action
+                    .iter()
+                    .map(|a| crate::types::GuideAction {
+                        step: a.step,
+                        label: a.label.clone(),
+                        run: a.run.clone(),
+                        admin: a.admin,
+                    })
+                    .collect(),
             },
         }
     }

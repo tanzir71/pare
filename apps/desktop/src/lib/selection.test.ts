@@ -30,7 +30,7 @@ const items = [
   f("b", REVIEW, 200, { kind: "recycle" }),
   f("c", KEEP, 900),
   f("d", SAFE, 50, { kind: "recycle" }, "B"),
-  f("e", REVIEW, 10, { kind: "guide", steps: [] }, "B"),
+  f("e", REVIEW, 10, { kind: "guide", steps: [], actions: [] }, "B"),
 ];
 
 describe("selection", () => {

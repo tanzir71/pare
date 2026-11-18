@@ -279,8 +279,13 @@ pub enum Disposal {
     Recycle,
     /// Run the tool's own cleanup command.
     Command { program: String, args: Vec<String> },
-    /// Pare must not touch it: show steps only.
-    Guide { steps: Vec<String> },
+    /// Pare doesn't remove it: show steps. Some steps have an action Pare can run on an
+    /// explicit click (M8: Docker/WSL compaction, Windows Update cleanup).
+    Guide {
+        steps: Vec<String>,
+        #[serde(default)]
+        actions: Vec<GuideAction>,
+    },
     /// Empty the Recycle Bin of one drive (e.g. `C:\`).
     EmptyRecycleBin { drive: String },
 }
@@ -307,6 +312,21 @@ impl Disposal {
     pub fn is_actionable(&self) -> bool {
         !matches!(self, Disposal::Guide { .. })
     }
+}
+
+/// A guide step Pare can run for the user, only when they click it.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct GuideAction {
+    /// Index into the guide's steps.
+    pub step: usize,
+    /// Button label, e.g. "Prune unused Docker data".
+    pub label: String,
+    /// Program and arguments. `pare:compact-vhd` compacts the finding's virtual disks.
+    pub run: Vec<String>,
+    /// Needs Pare to run as administrator. Pare never asks for it on its own; without it the
+    /// UI shows the command to run in an administrator terminal.
+    pub admin: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]

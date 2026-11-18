@@ -10,7 +10,9 @@ import type {
   Disposal,
   Drive,
   Finding,
+  Growth,
   HistoryDetail,
+  SchedulableRule,
   Project,
   ProjectsView,
   BrowseChild,
@@ -112,8 +114,27 @@ function buildFindings(): Finding[] {
       createdBy: "VS Code", sourcePath: `${H}\\AppData\\Roaming`, items: 3400, comesBack: "automatically", note: "Rebuilds",
     }),
     f("ai-tools", "Cursor & VS Code", "Large Cursor chat database", `${H}\\AppData\\Roaming\\Cursor\\User\\globalStorage\\state.vscdb`, 0.9 * GB, REVIEW,
-      { kind: "guide", steps: ["In Cursor, run 'Developer: Delete Old Chats…' from the command palette.", "Pick an age cutoff; Cursor compacts the database afterwards."] },
+      { kind: "guide", steps: ["In Cursor, run 'Developer: Delete Old Chats…' from the command palette.", "Pick an age cutoff; Cursor compacts the database afterwards."], actions: [] },
       { createdBy: "Cursor", sourcePath: `${H}\\AppData\\Roaming`, note: "Guide" }),
+    f("junk", "Windows", "Docker Desktop disk image · docker_data.vhdx", `${H}\\AppData\\Local\\Docker\\wsl\\disk\\docker_data.vhdx`, 38 * GB, REVIEW,
+      {
+        kind: "guide",
+        steps: [
+          "Free space inside Docker: 'docker system prune' removes stopped containers, unused networks, dangling images and build cache ('docker system df' shows how much first).",
+          "Quit Docker Desktop, then stop WSL with 'wsl --shutdown'.",
+          "Compact the disk file as administrator. diskpart: select vdisk file=<file>, attach vdisk readonly, compact vdisk, detach vdisk.",
+        ],
+        actions: [
+          { step: 0, label: "Prune unused Docker data", run: ["docker", "system", "prune", "--force"], admin: false },
+          { step: 1, label: "Shut down WSL", run: ["wsl", "--shutdown"], admin: false },
+          { step: 2, label: "Compact the disk", run: ["pare:compact-vhd"], admin: true },
+        ],
+      },
+      {
+        ruleId: "docker.vhdx-guide", note: "Guide", sourcePath: `${H}\\AppData\\Local\\Docker`,
+        why: "Docker's virtual disk grows as you pull images but never shrinks on its own.",
+        ifRemoved: "Pare never deletes it. Pruning removes stopped containers and unused images; compacting keeps everything else.",
+      }),
     f("dev-caches", "Node.js package managers", "npm download cache", `${H}\\AppData\\Local\\npm-cache`, 3.2 * GB, SAFE, DEL, { comesBack: "on-demand", items: 18000 }),
     f("dev-caches", "Python tools", "pip cache", `${H}\\AppData\\Local\\pip\\Cache`, 1.4 * GB, SAFE, DEL, { comesBack: "on-demand", items: 900 }),
     f("dev-caches", "Rust, Go, JVM & .NET", "Cargo registry and git caches", `${H}\\.cargo\\registry`, 1.5 * GB, SAFE, DEL, { comesBack: "on-demand", items: 5000 }),
@@ -183,8 +204,19 @@ const drives: Drive[] = [
 let settings: Settings = {
   theme: "system", exclusions: [], customRoots: [{ path: "D:\\code", label: "D:\\code" }], projectRoots: [],
   thresholds: { largeFileMb: 500, largeFileDays: 90, installerDays: 7, partialDays: 1, oldDownloadDays: 180, idleDays: 90, screenshotDays: 90, duplicateMinMb: 1, recentHours: 24 },
-  cachesToRecycleBin: false, purgePareItemsAfterDays: 30, hiddenCards: [], checkForUpdates: false, onboardingDone: false, language: "en",
+  cachesToRecycleBin: false, purgePareItemsAfterDays: 30, hiddenCards: [], checkForUpdates: false, onboardingDone: false, language: "",
+  monitor: { enabled: false, tray: false, alertGb: 5, checkHours: 6 }, schedules: [],
 };
+
+const mockAlerts: Growth[] = [
+  { ruleId: "codex.old-sessions", label: "Codex · Old session logs", path: `${H}\\.codex`, category: "ai-tools", from: 2 * GB, to: 14 * GB, since: now - 7 * DAY },
+];
+
+const mockSchedulable: SchedulableRule[] = [
+  { id: "windows.user-temp", tool: "Windows", title: "Temporary files older than 1 day", why: "Leftovers apps write to %TEMP% and forget.", ifRemoved: "Nothing you'd notice; apps recreate what they need.", comesBack: "automatically", disposal: "delete" },
+  { id: "npm.cache", tool: "npm", title: "npm download cache", why: "Copies of packages npm already installed.", ifRemoved: "npm downloads packages again when a project needs them.", comesBack: "on-demand", disposal: "delete" },
+  { id: "pip.cache", tool: "pip", title: "pip cache", why: "Downloaded wheels pip keeps for reinstalls.", ifRemoved: "pip downloads them again when needed.", comesBack: "on-demand", disposal: "delete" },
+];
 
 function mockProjects(): ProjectsView {
   const mk = (name: string, root: string, status: Project["status"], days: number, branch: string, commits: number, arts: string[], gb: number, extra: Partial<Project["git"] & object> = {}): [Project, Finding | null] => {
@@ -384,6 +416,13 @@ export const mockBackend: Backend = {
         return r(findings[0]);
       case "relaunch_elevated":
         throw new Error("Not available in the browser preview.");
+      case "monitor_alerts":
+        return r(settings.monitor.enabled ? mockAlerts : []);
+      case "schedulable_rules":
+        return r(mockSchedulable);
+      case "guide_run":
+        await new Promise((res) => setTimeout(res, 600));
+        return r({ op: "op-mock", ok: true, output: "Browser preview: nothing was run.", before: 38 * GB, after: 38 * GB });
       default:
         throw new Error(`mock: unknown command ${cmd}`);
     }

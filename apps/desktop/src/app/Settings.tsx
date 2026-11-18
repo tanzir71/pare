@@ -4,8 +4,9 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { Button, Chip, cx, focusRing } from "@pare/ui";
 import { api, isTauri } from "../lib/ipc";
 import { checkForUpdate, markChecked } from "../lib/updates";
-import { useState } from "react";
-import type { CategoryId, Settings, Theme, Thresholds } from "../lib/types";
+import { useEffect, useState } from "react";
+import type { CategoryId, SchedulableRule, Settings, Theme, Thresholds } from "../lib/types";
+import { comesBackLabel } from "../lib/format";
 import { useApp } from "../state/app";
 
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
@@ -28,6 +29,86 @@ function PathList({ paths, onRemove, empty }: { paths: string[]; onRemove: (p: s
           <button type="button" aria-label={`Remove ${p}`} onClick={() => onRemove(p)} className={cx("rounded-md p-1 text-text-secondary hover:bg-bg-subtle", focusRing)}>
             <X size={16} aria-hidden="true" />
           </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Select<T extends string | number>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-3 text-body-m">
+      <span className="text-text-secondary">{label}</span>
+      <select
+        value={String(value)}
+        onChange={(e) => {
+          const picked = options.find((o) => String(o.value) === e.currentTarget.value);
+          if (picked) onChange(picked.value);
+        }}
+        className={cx("h-9 rounded-md border border-border-strong bg-bg-surface px-2 text-body-m", focusRing)}
+      >
+        {options.map((o) => (
+          <option key={String(o.value)} value={String(o.value)}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+const EVERY: { value: number; label: string }[] = [
+  { value: 0, label: "Off" },
+  { value: 7, label: "Every week" },
+  { value: 30, label: "Every month" },
+];
+
+function Schedules({ settings, set }: { settings: Settings; set: (p: Partial<Settings>) => void }) {
+  const [rules, setRules] = useState<SchedulableRule[] | null>(null);
+  useEffect(() => {
+    void api.schedulableRules().then(setRules).catch(() => setRules([]));
+  }, []);
+  if (!rules) return <p className="text-body-s text-text-tertiary">Loading…</p>;
+  const every = (id: string) => settings.schedules.find((s) => s.rule === id)?.everyDays ?? 0;
+  const change = (id: string, days: number) => {
+    const rest = settings.schedules.filter((s) => s.rule !== id);
+    set({ schedules: days > 0 ? [...rest, { rule: id, everyDays: days }] : rest });
+  };
+  return (
+    <ul className="overflow-hidden rounded-md border border-border-default">
+      {rules.map((r) => (
+        <li key={r.id} className="flex items-start gap-4 border-b border-border-default px-3 py-2.5 last:border-b-0">
+          <div className="min-w-0 flex-1">
+            <p className="text-body-m-strong">
+              {r.tool} · {r.title}
+            </p>
+            <p className="text-body-s text-text-secondary">{r.why}</p>
+            <p className="text-caption text-text-tertiary">
+              If removed: {r.ifRemoved} Comes back: {comesBackLabel(r.comesBack)}.
+            </p>
+          </div>
+          <select
+            aria-label={`Schedule for ${r.title}`}
+            value={String(every(r.id))}
+            onChange={(e) => change(r.id, Number(e.currentTarget.value))}
+            className={cx("h-9 shrink-0 rounded-md border border-border-strong bg-bg-surface px-2 text-body-m", focusRing)}
+          >
+            {EVERY.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
         </li>
       ))}
     </ul>
@@ -187,6 +268,47 @@ export function SettingsScreen() {
           checked={settings.purgePareItemsAfterDays != null}
           onChange={(v) => set({ purgePareItemsAfterDays: v ? 30 : null })}
         />
+      </Section>
+
+      <Section
+        title="Monitor"
+        description="While Pare is open (or in the notification area), it checks the folders its rules know about and tells you when one grows fast. It only reads; nothing is removed."
+      >
+        <Toggle
+          label="Watch for fast-growing folders"
+          hint="For example: “~\.codex grew 12 GB this week”. Pare checks a few times a day."
+          checked={settings.monitor.enabled}
+          onChange={(v) => set({ monitor: { ...settings.monitor, enabled: v } })}
+        />
+        <Toggle
+          label="Keep Pare in the notification area when I close the window"
+          hint="Monitoring and scheduled cleanups only run while Pare is running. Pare doesn't start with Windows, install a service or add a scheduled task."
+          checked={settings.monitor.tray}
+          onChange={(v) => set({ monitor: { ...settings.monitor, tray: v } })}
+        />
+        {settings.monitor.enabled && (
+          <div className="grid grid-cols-1 gap-x-6 gap-y-3 min-[900px]:grid-cols-2">
+            <Select
+              label="Tell me when something grows by"
+              value={settings.monitor.alertGb}
+              options={[1, 2, 5, 10, 20].map((n) => ({ value: n, label: `${n} GB a week` }))}
+              onChange={(v) => set({ monitor: { ...settings.monitor, alertGb: v } })}
+            />
+            <Select
+              label="Check every"
+              value={settings.monitor.checkHours}
+              options={[3, 6, 12, 24].map((n) => ({ value: n, label: `${n} hours` }))}
+              onChange={(v) => set({ monitor: { ...settings.monitor, checkHours: v } })}
+            />
+          </div>
+        )}
+      </Section>
+
+      <Section
+        title="Scheduled cleanups"
+        description="Off by default. Only Safe items that come back on their own can run on a schedule. Each run skips anything changed in the last 24 hours, open in an app or on your “Always keep” list, and shows up in History."
+      >
+        <Schedules settings={settings} set={set} />
       </Section>
 
       <Section title="Appearance">

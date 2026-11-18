@@ -38,6 +38,9 @@
     "allow-browse-kind-files",
     "allow-browse-item",
     "allow-relaunch-elevated",
+    "allow-monitor-alerts",
+    "allow-schedulable-rules",
+    "allow-guide-run",
     "updater:default",
     "process:allow-restart"
   ]

@@ -159,6 +159,19 @@ fn every_rule_matches_its_fixture() {
             "{} matched nothing; planted {planted:#?}",
             rule.id
         );
+        if rule.unmeasured {
+            // Only the tool can size it: no paths, so nothing is ever selectable.
+            for c in &cands {
+                assert!(
+                    c.extra_paths.is_empty() && c.nodes.is_empty(),
+                    "{}",
+                    rule.id
+                );
+                assert!(c.source_path.is_some(), "{}", rule.id);
+            }
+            checked += 1;
+            continue;
+        }
         for f in &planted {
             assert!(
                 cands.iter().any(|c| covers(c, f)),
@@ -340,6 +353,8 @@ mod never_touch_property {
             detector: String::new(),
             verified: false,
             sources: vec![],
+            action: vec![],
+            unmeasured: false,
         };
         let tool = LoadedTool {
             tool: ToolDef {

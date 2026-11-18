@@ -1,5 +1,6 @@
 // Copy formatting (DESIGN §1 Type; PRD §7 Voice). Decimal units, tabular numbers.
-import type { ComesBack, ProtectReason, Tier, Timestamp } from "./types";
+import { formatBytes } from "@pare/ui";
+import type { ComesBack, Growth, ProtectReason, Tier, Timestamp } from "./types";
 
 export { formatBytes, formatBytesExact } from "@pare/ui";
 
@@ -111,4 +112,18 @@ export function tierBadge(
   }
   if (t.kind === "safe") return { tone: "safe", label: custom ?? "Safe", sr: "Safe: comes back or isn't needed" };
   return { tone: "review", label: custom ?? "Review", sr: "Review: your data, check before removing" };
+}
+
+/** `C:\Users\ana\.codex` → `~\.codex` */
+export function tildePath(p: string, home: string | undefined): string {
+  if (home && p.toLowerCase().startsWith(home.toLowerCase())) return `~${p.slice(home.length)}`;
+  return p;
+}
+
+/** "~\.codex grew 12 GB this week" */
+export function growthPhrase(g: Growth, home: string | undefined, now = Date.now()): string {
+  const what = g.path ? tildePath(g.path, home) : g.label;
+  const days = Math.round((now - g.since) / 86_400_000);
+  const when = days >= 6 ? "this week" : days <= 1 ? "since yesterday" : `in ${days} days`;
+  return `${what} grew ${formatBytes(Math.max(0, g.to - g.from))} ${when}`;
 }

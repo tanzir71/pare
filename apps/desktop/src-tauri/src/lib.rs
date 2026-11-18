@@ -1,9 +1,11 @@
 //! Pare desktop shell: window, state and the IPC commands. All logic lives in pare-core.
 
 mod commands;
+mod monitor;
 mod state;
 
 use state::AppState;
+use tauri::Manager;
 
 pub fn run() {
     let _ = tracing_subscriber::fmt()
@@ -18,7 +20,8 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_process::init());
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_notification::init());
     // The updater only exists in builds signed for it (the release workflow passes the public
     // key). It never runs unless the user turned on "Check for updates".
     if let Some(pubkey) = option_env!("PARE_UPDATER_PUBKEY").filter(|k| !k.is_empty()) {
@@ -26,6 +29,19 @@ pub fn run() {
     }
     builder
         .manage(state)
+        .setup(|app| {
+            monitor::setup(app.handle());
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            // With the notification area icon on, closing the window keeps Pare running.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if monitor::keep_in_tray(window.app_handle()) {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
             commands::list_drives,
@@ -51,6 +67,9 @@ pub fn run() {
             commands::browse_kind_files,
             commands::browse_item,
             commands::relaunch_elevated,
+            commands::monitor_alerts,
+            commands::schedulable_rules,
+            commands::guide_run,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Pare");

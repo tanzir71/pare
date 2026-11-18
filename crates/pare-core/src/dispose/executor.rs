@@ -25,6 +25,8 @@ pub struct CleanOptions {
     pub exclusions: Vec<PathBuf>,
     pub check_in_use: bool,
     pub command_timeout: Duration,
+    /// Shown before the History title, e.g. "Scheduled cleanup".
+    pub label: Option<String>,
 }
 
 impl CleanOptions {
@@ -35,6 +37,7 @@ impl CleanOptions {
             exclusions: Vec::new(),
             check_in_use: true,
             command_timeout: Duration::from_secs(300),
+            label: None,
         }
     }
 }
@@ -106,7 +109,7 @@ pub struct CleanProgress {
     pub freed: u64,
 }
 
-fn new_op_id(now: Timestamp) -> String {
+pub(crate) fn new_op_id(now: Timestamp) -> String {
     use std::sync::atomic::{AtomicU32, Ordering};
     static SEQ: AtomicU32 = AtomicU32::new(0);
     format!(
@@ -415,7 +418,11 @@ pub fn run_command(
         output.push_str(&err);
     }
     if output.len() > 8000 {
-        output.truncate(8000);
+        let mut cut = 8000;
+        while !output.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        output.truncate(cut);
         output.push_str("\n…");
     }
     match status {
@@ -480,10 +487,13 @@ pub fn clean(
     let mut begin = vec![LogRecord::OpBegin {
         op: op.clone(),
         ts: started,
-        title: format!(
-            "Free up {}",
-            format_bytes(plan.iter().map(|f| f.bytes).sum())
-        ),
+        title: {
+            let size = format_bytes(plan.iter().map(|f| f.bytes).sum());
+            match &opts.label {
+                Some(l) => format!("{l}: free up {size}"),
+                None => format!("Free up {size}"),
+            }
+        },
         items: plan.len() as u64,
         bytes: plan.iter().map(|f| f.bytes).sum(),
     }];

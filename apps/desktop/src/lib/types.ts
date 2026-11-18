@@ -40,8 +40,57 @@ export type Disposal =
   | { kind: "delete" }
   | { kind: "recycle" }
   | { kind: "command"; program: string; args: string[] }
-  | { kind: "guide"; steps: string[] }
+  | { kind: "guide"; steps: string[]; actions: GuideAction[] }
   | { kind: "empty-recycle-bin"; drive: string };
+
+/** A guide step Pare can run on a click (M8). `pare:compact-vhd` compacts the item's virtual disks. */
+export interface GuideAction {
+  step: number;
+  label: string;
+  run: string[];
+  admin: boolean;
+}
+
+export interface ActionReport {
+  op: string;
+  ok: boolean;
+  output: string;
+  before: number;
+  after: number;
+}
+
+/** Something that grew a lot in about a week (M8 monitor). */
+export interface Growth {
+  ruleId: string;
+  label: string;
+  path: string | null;
+  category: CategoryId;
+  from: number;
+  to: number;
+  since: Timestamp;
+}
+
+export interface SchedulableRule {
+  id: string;
+  tool: string;
+  title: string;
+  why: string;
+  ifRemoved: string;
+  comesBack: ComesBack;
+  disposal: string;
+}
+
+export interface MonitorSettings {
+  enabled: boolean;
+  tray: boolean;
+  alertGb: number;
+  checkHours: number;
+}
+
+export interface RuleSchedule {
+  rule: string;
+  everyDays: number;
+}
 
 export interface Dates {
   createdMin: Timestamp | null;
@@ -315,7 +364,10 @@ export interface Settings {
   hiddenCards: CategoryId[];
   checkForUpdates: boolean;
   onboardingDone: boolean;
+  /** BCP 47 tag; empty follows Windows. */
   language: string;
+  monitor: MonitorSettings;
+  schedules: RuleSchedule[];
 }
 
 export interface AppInfo {

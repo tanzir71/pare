@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-schedulable-rules"
+description = "Enables the schedulable_rules command without any pre-configured scope."
+commands.allow = ["schedulable_rules"]
+
+[[permission]]
+identifier = "deny-schedulable-rules"
+description = "Denies the schedulable_rules command without any pre-configured scope."
+commands.deny = ["schedulable_rules"]

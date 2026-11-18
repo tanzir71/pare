@@ -449,7 +449,11 @@ pub fn scan(
         let mut found = 0u64;
         let mut touched: Vec<CategoryId> = Vec::new();
         for (f, _) in assessed {
-            if f.bytes == 0 && f.items == 0 && !matches!(f.category, CategoryId::EmptyFolders) {
+            if f.bytes == 0
+                && f.items == 0
+                && !matches!(f.category, CategoryId::EmptyFolders)
+                && f.disposal.is_actionable()
+            {
                 continue;
             }
             if f.tier.is_selectable() {
@@ -569,6 +573,73 @@ pub fn summarize(findings: &[Finding]) -> Vec<CategorySummary> {
         .collect();
     v.sort_by_key(|s| std::cmp::Reverse(s.total_bytes()));
     v
+}
+
+/// Rules only, without walking any folder (M8: growth monitor and scheduled cleanups). Runs
+/// the rules `pick` accepts wherever they match, then measures and runs the safety pass, so
+/// the findings carry the same tiers a full scan would give them.
+pub fn scan_rules(
+    cfg: &ScanConfig,
+    env: &Env,
+    pick: impl Fn(&crate::rules::LoadedTool, &crate::rules::RuleDef) -> bool,
+) -> Vec<Finding> {
+    let Some(set) = cfg.rules.clone() else {
+        return Vec::new();
+    };
+    let now = cfg.now.unwrap_or_else(now_ms);
+    let drives: Vec<PathBuf> = if env.is_fake {
+        Vec::new()
+    } else {
+        platform::list_drives()
+            .into_iter()
+            .filter(|d| d.is_fixed)
+            .map(|d| d.root)
+            .collect()
+    };
+    let recent_ms = cfg.thresholds.recent_hours as i64 * MS_PER_HOUR;
+    let ctx = crate::rules::engine::RuleCtx {
+        env,
+        now,
+        recent_ms,
+        drives: &drives,
+        elevated: platform::is_elevated(),
+        within: None,
+        check_in_use: cfg.check_in_use,
+    };
+    let candidates = crate::rules::engine::run_rules(&set, &ctx, pick);
+    let mut safety_opts = SafetyOptions::new(now);
+    safety_opts.recent_ms = recent_ms;
+    safety_opts.exclusions = cfg.exclusions.clone();
+    safety_opts.check_in_use = cfg.check_in_use;
+    safety_opts.running = safety::running_processes();
+    let tree = Tree::default();
+    let mut assessed: Vec<(Finding, Vec<PathBuf>)> = candidates
+        .into_iter()
+        .map(|c| {
+            let (mut f, probe) = measure(c, &tree);
+            safety::assess(&mut f, &probe, env, &safety_opts);
+            let files = if f.tier.is_protected() {
+                Vec::new()
+            } else {
+                probe.recent_files
+            };
+            (f, files)
+        })
+        .collect();
+    if cfg.check_in_use {
+        let groups: Vec<Vec<PathBuf>> = assessed
+            .iter_mut()
+            .map(|(_, p)| std::mem::take(p))
+            .collect();
+        for ((f, _), holders) in assessed.iter_mut().zip(safety::holders_batch(&groups)) {
+            safety::apply_in_use(f, holders);
+        }
+    }
+    assessed
+        .into_iter()
+        .map(|(f, _)| f)
+        .filter(|f| f.bytes > 0 || f.items > 0 || !f.disposal.is_actionable())
+        .collect()
 }
 
 /// Projects only (the Projects tab): discover, analyze, measure and run the safety pass.

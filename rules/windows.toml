@@ -55,11 +55,75 @@ title = "Docker Desktop disk image"
 paths = ["%LOCALAPPDATA%/Docker/wsl/disk/docker_data.vhdx", "%LOCALAPPDATA%/Docker/wsl/main/ext4.vhdx", "%LOCALAPPDATA%/Docker/wsl/data/ext4.vhdx"]
 tier = "review"
 disposal = "guide"
-guide = ["Run 'docker system df' to see reclaimable space, then 'docker system prune' (add -a to remove unused images).",
-         "Quit Docker Desktop and run 'wsl --shutdown'.",
-         "Compact the disk: Optimize-VHD -Path <file> -Mode Full (Hyper-V), or diskpart: select vdisk file=<file>, attach vdisk readonly, compact vdisk, detach vdisk."]
+guide = ["Free space inside Docker: 'docker system prune' removes stopped containers, unused networks, dangling images and build cache ('docker system df' shows how much first).",
+         "Quit Docker Desktop, then stop WSL with 'wsl --shutdown'.",
+         "Compact the disk file as administrator. diskpart: select vdisk file=<file>, attach vdisk readonly, compact vdisk, detach vdisk. With Hyper-V you can use Optimize-VHD -Path <file> -Mode Full instead."]
 comes_back = "no"
 why = "Docker's virtual disk grows as you pull images but never shrinks on its own."
-if_removed = "Pare never deletes it; these steps shrink it safely."
+if_removed = "Pare never deletes it. Pruning removes stopped containers and unused images; compacting keeps everything else."
 verified = true
-sources = ["https://woshub.com/shrink-wsl2-and-docker-desktop-vhdx-files-in-windows/"]
+sources = ["https://woshub.com/shrink-wsl2-and-docker-desktop-vhdx-files-in-windows/", "https://docs.docker.com/reference/cli/docker/system/prune/"]
+
+[[rule.action]]
+step = 0
+label = "Prune unused Docker data"
+run = ["docker", "system", "prune", "--force"]
+
+[[rule.action]]
+step = 1
+label = "Shut down WSL"
+run = ["wsl", "--shutdown"]
+
+[[rule.action]]
+step = 2
+label = "Compact the disk"
+run = ["pare:compact-vhd"]
+admin = true
+
+[[rule]]
+id = "wsl.vhdx-guide"
+title = "WSL Linux disk"
+paths = ["%LOCALAPPDATA%/Packages/*/LocalState/ext4.vhdx", "%LOCALAPPDATA%/wsl/*/ext4.vhdx"]
+tier = "review"
+disposal = "guide"
+guide = ["Free space inside Linux first, for example 'sudo apt clean' and deleting files you no longer need.",
+         "Close every WSL window, then stop WSL with 'wsl --shutdown'.",
+         "Compact the disk file as administrator. diskpart: select vdisk file=<file>, attach vdisk readonly, compact vdisk, detach vdisk. On WSL 2.0 or later you can instead let it shrink by itself: wsl --manage <distro> --set-sparse true."]
+comes_back = "no"
+why = "A WSL disk grows as Linux writes files but never shrinks on its own, even after you delete them."
+if_removed = "Pare never deletes it. Compacting keeps every Linux file and gives unused space back to Windows."
+verified = false
+sources = ["https://learn.microsoft.com/windows/wsl/disk-space", "https://woshub.com/shrink-wsl2-and-docker-desktop-vhdx-files-in-windows/"]
+
+[[rule.action]]
+step = 1
+label = "Shut down WSL"
+run = ["wsl", "--shutdown"]
+
+[[rule.action]]
+step = 2
+label = "Compact the disk"
+run = ["pare:compact-vhd"]
+admin = true
+
+[[rule]]
+id = "windows.component-store-guide"
+title = "Windows Update leftovers"
+paths = ["%WINDIR%/WinSxS"]
+tier = "review"
+disposal = "guide"
+unmeasured = true
+guide = ["Windows keeps older versions of components that updates replaced. Its own cleanup removes them after 30 days; you can run it now.",
+         "In an administrator terminal: Dism.exe /Online /Cleanup-Image /StartComponentCleanup (it can take several minutes).",
+         "Never delete files from WinSxS by hand: that can break Windows."]
+comes_back = "no"
+why = "Old versions of Windows components left behind by updates."
+if_removed = "Replaced component versions are removed now instead of after 30 days. Pare never adds /ResetBase, which would stop installed updates from being uninstalled."
+verified = false
+sources = ["https://learn.microsoft.com/windows-hardware/manufacture/desktop/clean-up-the-winsxs-folder"]
+
+[[rule.action]]
+step = 1
+label = "Run Windows Update cleanup"
+run = ["dism.exe", "/Online", "/Cleanup-Image", "/StartComponentCleanup"]
+admin = true

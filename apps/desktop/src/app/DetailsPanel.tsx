@@ -1,14 +1,111 @@
-import { FolderOpen, Play, Trash2, X, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { FolderOpen, Play, ShieldAlert, Trash2, X, Sparkles } from "lucide-react";
 import { Badge, Button, CategoryTile, cx, focusRing } from "@pare/ui";
 import { api } from "../lib/ipc";
-import { ago, comesBackLabel, date, formatBytes, formatCount, protectExplain, tierBadge } from "../lib/format";
-import type { Finding } from "../lib/types";
+import { ago, comesBackLabel, date, formatBytes, formatCount, protectExplain, tierBadge, tildePath } from "../lib/format";
+import type { ActionReport, Finding, GuideAction } from "../lib/types";
 import { useApp } from "../state/app";
 import { categoryHue, findingIcon } from "../components/icons";
 
-function tildePath(p: string, home: string | undefined): string {
-  if (home && p.toLowerCase().startsWith(home.toLowerCase())) return `~${p.slice(home.length)}`;
-  return p;
+/** The command a guide action runs, as the user would type it in a terminal. */
+export function actionCommand(a: GuideAction, paths: string[]): string {
+  if (a.run[0] === "pare:compact-vhd") {
+    return paths
+      .map((p) => ["diskpart", `select vdisk file="${p}"`, "attach vdisk readonly", "compact vdisk", "detach vdisk", "exit"].join("\n"))
+      .join("\n\n");
+  }
+  return a.run.join(" ");
+}
+
+function GuideSteps({ finding: f }: { finding: Finding }) {
+  const elevated = useApp((s) => s.info?.elevated ?? false);
+  const [confirm, setConfirm] = useState<number | null>(null);
+  const [running, setRunning] = useState<number | null>(null);
+  const [results, setResults] = useState<Record<number, ActionReport | string>>({});
+  if (f.disposal.kind !== "guide") return null;
+  const { steps, actions } = f.disposal;
+
+  async function run(idx: number) {
+    setConfirm(null);
+    setRunning(idx);
+    try {
+      const r = await api.guideRun(f.id, idx);
+      setResults((x) => ({ ...x, [idx]: r }));
+    } catch (e) {
+      setResults((x) => ({ ...x, [idx]: String(e) }));
+    } finally {
+      setRunning(null);
+    }
+  }
+
+  return (
+    <section>
+      <h3 className="text-body-m-strong text-text-primary">How to clean it up</h3>
+      <ol className="mt-1 list-decimal space-y-3 pl-5 text-body-s text-text-secondary">
+        {steps.map((s, i) => (
+          <li key={s}>
+            <p>{s}</p>
+            {actions
+              .map((a, idx) => ({ a, idx }))
+              .filter(({ a }) => a.step === i)
+              .map(({ a, idx }) => {
+                const res = results[idx];
+                const cmd = actionCommand(a, f.paths);
+                return (
+                  <div key={idx} className="mt-2 flex flex-col gap-2">
+                    {a.admin && !elevated ? (
+                      <div className="rounded-md bg-bg-subtle px-3 py-2">
+                        <p className="flex items-center gap-1.5 text-text-primary">
+                          <ShieldAlert size={14} aria-hidden="true" /> Needs administrator rights
+                        </p>
+                        <p className="mt-1">Run this in an administrator terminal, or restart Pare as administrator and come back here.</p>
+                        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-all font-mono text-mono-s text-text-primary">{cmd}</pre>
+                        <div className="mt-2 flex gap-2">
+                          <Button variant="secondary" onClick={() => void navigator.clipboard?.writeText(cmd)}>
+                            Copy command
+                          </Button>
+                          <Button variant="ghost" onClick={() => void api.relaunchElevated().catch((e) => setResults((x) => ({ ...x, [idx]: String(e) })))}>
+                            Restart as administrator
+                          </Button>
+                        </div>
+                      </div>
+                    ) : confirm === idx ? (
+                      <div className="rounded-md border border-border-default px-3 py-2">
+                        <p className="text-text-primary">Run this now?</p>
+                        <pre className="mt-1 overflow-x-auto whitespace-pre-wrap break-all font-mono text-mono-s">{cmd}</pre>
+                        <div className="mt-2 flex gap-2">
+                          <Button onClick={() => void run(idx)}>Run</Button>
+                          <Button variant="ghost" onClick={() => setConfirm(null)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <Button variant="secondary" icon={Play} disabled={running !== null} onClick={() => setConfirm(idx)}>
+                          {running === idx ? "Running…" : a.label}
+                        </Button>
+                      </div>
+                    )}
+                    {typeof res === "string" && <p className="text-keep-fg">{res}</p>}
+                    {res && typeof res !== "string" && (
+                      <div className={cx("rounded-md px-3 py-2", res.ok ? "bg-safe-bg text-safe-fg" : "bg-review-bg text-review-fg")}>
+                        <p>
+                          {res.ok ? "Done." : "That didn't work."}
+                          {res.before > res.after ? ` Freed ${formatBytes(res.before - res.after)}.` : ""}
+                        </p>
+                        {res.output && <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap font-mono text-mono-s">{res.output}</pre>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+          </li>
+        ))}
+      </ol>
+      <p className="mt-2 text-caption text-text-tertiary">Pare never deletes this itself. Each step runs only when you click it, and is written to the log.</p>
+    </section>
+  );
 }
 
 export function disposalAction(f: Finding): { label: string; icon: typeof Trash2 } | null {
@@ -54,7 +151,7 @@ export function DetailsPanel({ finding: f, onClose, onDispose, onKeep, busy }: P
       : []),
     ...f.facts,
   ];
-  const location = f.disposal.kind === "empty-recycle-bin" ? f.disposal.drive : (f.paths[0] ?? "");
+  const location = f.disposal.kind === "empty-recycle-bin" ? f.disposal.drive : (f.paths[0] ?? f.sourcePath ?? "");
 
   return (
     <div className="flex flex-col gap-5 p-5">
@@ -77,7 +174,7 @@ export function DetailsPanel({ finding: f, onClose, onDispose, onKeep, busy }: P
 
       <div className="flex items-center gap-3">
         <span className="tabular text-heading-h1 text-text-primary" title={`${f.bytes.toLocaleString("en-US")} bytes on disk`}>
-          {formatBytes(f.bytes)}
+          {f.bytes === 0 && f.disposal.kind === "guide" ? "—" : formatBytes(f.bytes)}
         </span>
         <Badge tone={b.tone} srDescription={b.sr}>
           {b.label}
@@ -99,17 +196,7 @@ export function DetailsPanel({ finding: f, onClose, onDispose, onKeep, busy }: P
         <p className="mt-1 text-body-s text-text-secondary">{f.ifRemoved}</p>
       </section>
 
-      {f.disposal.kind === "guide" && (
-        <section>
-          <h3 className="text-body-m-strong text-text-primary">How to clean it up</h3>
-          <ol className="mt-1 list-decimal space-y-1 pl-5 text-body-s text-text-secondary">
-            {f.disposal.steps.map((s) => (
-              <li key={s}>{s}</li>
-            ))}
-          </ol>
-          <p className="mt-2 text-caption text-text-tertiary">Pare never deletes this itself.</p>
-        </section>
-      )}
+      {f.disposal.kind === "guide" && <GuideSteps key={f.id} finding={f} />}
       {f.disposal.kind === "command" && (
         <p className="text-body-s text-text-secondary">
           Pare runs the tool's own cleanup:{" "}

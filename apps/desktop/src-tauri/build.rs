@@ -25,6 +25,9 @@ const COMMANDS: &[&str] = &[
     "browse_kind_files",
     "browse_item",
     "relaunch_elevated",
+    "monitor_alerts",
+    "schedulable_rules",
+    "guide_run",
 ];
 
 fn main() {

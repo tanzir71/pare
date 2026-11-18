@@ -75,7 +75,27 @@ pub struct RuleDef {
     pub verified: bool,
     #[serde(default)]
     pub sources: Vec<String>,
+    /// Guide steps Pare can run on a click (`[[rule.action]]`, built-in rules only).
+    #[serde(default)]
+    pub action: Vec<ActionDef>,
+    /// Don't measure the matched paths (the size is only known to the tool, e.g. DISM).
+    #[serde(default)]
+    pub unmeasured: bool,
 }
+
+/// `[[rule.action]]`: a guide step Pare can run for the user.
+#[derive(Deserialize, Serialize, Clone, Debug, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ActionDef {
+    pub step: usize,
+    pub label: String,
+    pub run: Vec<String>,
+    #[serde(default)]
+    pub admin: bool,
+}
+
+/// Programs a guide action may run. Anything else fails validation.
+pub const ACTION_PROGRAMS: &[&str] = &["docker", "wsl", "dism.exe", "pare:compact-vhd"];
 
 fn default_disposal() -> DisposalDecl {
     DisposalDecl::Recycle
@@ -211,9 +231,9 @@ impl RuleSet {
                     ));
                     return false;
                 }
-                if r.disposal == DisposalDecl::Command {
+                if r.disposal == DisposalDecl::Command || !r.action.is_empty() {
                     self.warnings.push(format!(
-                        "{name}: rule {} uses a command, which user rules can't",
+                        "{name}: rule {} runs a command, which user rules can't",
                         r.id
                     ));
                     return false;
@@ -342,6 +362,24 @@ pub fn validate(set: &RuleSet) -> Vec<String> {
                 "{}: {} has disposal = guide but no steps",
                 t.file, r.id
             ));
+        }
+        for a in &r.action {
+            if r.disposal != DisposalDecl::Guide || a.step >= r.guide.len() {
+                errors.push(format!(
+                    "{}: {} has an action for a step that doesn't exist",
+                    t.file, r.id
+                ));
+            }
+            if !a
+                .run
+                .first()
+                .is_some_and(|p| ACTION_PROGRAMS.contains(&p.as_str()))
+            {
+                errors.push(format!(
+                    "{}: {} action runs {:?}, which isn't allowed",
+                    t.file, r.id, a.run
+                ));
+            }
         }
         if !r.detector.is_empty() && !engine::DETECTORS.contains(&r.detector.as_str()) {
             errors.push(format!(

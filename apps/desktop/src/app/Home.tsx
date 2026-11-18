@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import {
   Download,
@@ -10,11 +10,12 @@ import {
   RefreshCw,
   ScanSearch,
   ShieldCheck,
+  TrendingUp,
 } from "lucide-react";
 import { Button, Chip, SearchField, StorageSummary, SuggestionCard, FileRow, cx, type BadgeTone } from "@pare/ui";
-import { api, isTauri } from "../lib/ipc";
-import { ago, formatBytes, formatCount, plural, protectExplain, tierBadge } from "../lib/format";
-import type { CategorySummary, Finding, ProtectReason } from "../lib/types";
+import { api, isTauri, on } from "../lib/ipc";
+import { ago, formatBytes, formatCount, growthPhrase, plural, protectExplain, tierBadge } from "../lib/format";
+import type { CategorySummary, Finding, Growth, ProtectReason } from "../lib/types";
 import { useApp } from "../state/app";
 import { useClean } from "../state/clean";
 import { useScan, type ScopeKey } from "../state/scan";
@@ -77,6 +78,25 @@ export function Home() {
   const [keptOpen, setKeptOpen] = useState(false);
   const [kept, setKept] = useState<Finding[]>([]);
   const [results, setResults] = useState<Finding[] | null>(null);
+  const home = useApp((s) => s.folders?.home);
+  const [alerts, setAlerts] = useState<Growth[]>([]);
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  const monitorOn = settings?.monitor.enabled ?? false;
+  useEffect(() => {
+    if (!monitorOn) {
+      setAlerts([]);
+      return;
+    }
+    let un: (() => void) | undefined;
+    let live = true;
+    void api.monitorAlerts().then((a) => live && setAlerts(a)).catch(() => {});
+    void on("monitor://alerts", (a) => setAlerts(a)).then((u) => (live ? (un = u) : u()));
+    return () => {
+      live = false;
+      un?.();
+    };
+  }, [monitorOn]);
+  const shownAlerts = alerts.filter((a) => !dismissed.includes(a.ruleId)).slice(0, 3);
 
   const hidden = settings?.hiddenCards ?? [];
   const categories = scan.categories.filter((c) => !hidden.includes(c.id) && c.safeBytes + c.reviewBytes > 0);
@@ -208,6 +228,21 @@ export function Home() {
           Scanning… {Math.round((scan.progress?.fraction ?? 0) * 100)}% · results appear as they're ready
         </button>
       )}
+
+      {shownAlerts.map((a) => (
+        <div key={a.ruleId} role="status" className="flex items-center gap-3 rounded-lg bg-review-bg px-4 py-3 text-body-s text-review-fg">
+          <TrendingUp size={18} className="shrink-0" aria-hidden="true" />
+          <p className="min-w-0 flex-1">
+            <span className="text-body-m-strong">{growthPhrase(a, home)}.</span> {a.label}.
+          </p>
+          <Button variant="secondary" onClick={() => go({ name: "review", category: a.category })}>
+            Review
+          </Button>
+          <Button variant="ghost" onClick={() => setDismissed((d) => [...d, a.ruleId])}>
+            Dismiss
+          </Button>
+        </div>
+      ))}
 
       {summary && (safe + review > 0 || scan.running) && (
         <StorageSummary

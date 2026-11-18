@@ -9,6 +9,7 @@ pub mod env;
 pub mod format;
 pub mod history;
 pub mod index;
+pub mod monitor;
 pub mod platform;
 pub mod projects;
 pub mod rules;
