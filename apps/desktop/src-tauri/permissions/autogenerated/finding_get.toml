@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-finding-get"
+description = "Enables the finding_get command without any pre-configured scope."
+commands.allow = ["finding_get"]
+
+[[permission]]
+identifier = "deny-finding-get"
+description = "Denies the finding_get command without any pre-configured scope."
+commands.deny = ["finding_get"]

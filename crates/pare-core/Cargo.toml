@@ -9,3 +9,33 @@ rust-version.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+rayon = "1.12.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sysinfo = { version = "0.40.4", default-features = false, features = ["system", "disk"] }
+thiserror = "2.0.21"
+tracing = "0.1.44"
+trash = "5.4.0"
+xxhash-rust = { version = "0.8.21", features = ["xxh3"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Com",
+  "Win32_System_IO",
+  "Win32_System_Ioctl",
+  "Win32_System_RestartManager",
+  "Win32_System_Threading",
+  "Win32_UI_Shell",
+] }
+
+[dev-dependencies]
+filetime = "0.2.30"
+tempfile = "3.27.0"
+
+[target.'cfg(windows)'.dev-dependencies]
+junction = "2.1.0"

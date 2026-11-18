@@ -24,3 +24,6 @@ Thumbs.db
 .env.*
 *.log
 lighthouse/
+
+# Claude Code worktrees
+.claude/worktrees/

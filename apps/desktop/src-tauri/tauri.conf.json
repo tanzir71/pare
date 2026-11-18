@@ -1,0 +1,69 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Pare",
+  "version": "0.1.0",
+  "identifier": "app.pare.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Pare",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 640,
+        "decorations": false,
+        "shadow": true,
+        "center": true,
+        "visible": true,
+        "backgroundColor": "#F6F7F9"
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data:",
+        "font-src": "'self' data:",
+        "connect-src": "ipc: http://ipc.localhost"
+      },
+      "freezePrototype": true
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "category": "Utility",
+    "shortDescription": "Make room on your PC. Keep what matters.",
+    "longDescription": "Pare finds caches, idle build folders, AI-tool logs and forgotten downloads, and shows you what's safe to remove before anything is deleted.",
+    "copyright": "© 2026 Pare contributors. MIT License.",
+    "publisher": "Pare contributors",
+    "homepage": "https://github.com/tanzir71/pare",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    }
+  }
+}

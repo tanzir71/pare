@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-scan-summary"
+description = "Enables the scan_summary command without any pre-configured scope."
+commands.allow = ["scan_summary"]
+
+[[permission]]
+identifier = "deny-scan-summary"
+description = "Denies the scan_summary command without any pre-configured scope."
+commands.deny = ["scan_summary"]
